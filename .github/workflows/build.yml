@@ -55,11 +55,40 @@ jobs:
         shell: cmd
         run: build.bat
 
+      - name: Render README to HTML
+        shell: pwsh
+        run: |
+          $body = (ConvertFrom-Markdown -Path README.md).Html
+          $html = @"
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>BASS Player</title>
+          <style>
+            body { font-family: system-ui, sans-serif; line-height: 1.6;
+                   max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+            code { background: #f0f0f0; padding: .1em .3em; border-radius: 3px; }
+            pre { background: #f0f0f0; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+            pre code { background: none; padding: 0; }
+            table { border-collapse: collapse; }
+            th, td { border: 1px solid #ccc; padding: .3em .6em; text-align: left; }
+            blockquote { border-left: 4px solid #ccc; margin: 1em 0; padding: .1em 1em; color: #555; }
+          </style>
+          </head>
+          <body>
+          $body
+          </body>
+          </html>
+          "@
+          Set-Content -Path README.html -Value $html -Encoding utf8
+
       - name: Stage and zip release files
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path release | Out-Null
-          Copy-Item BASSPlayer.exe, bass.dll, bass_fx.dll, bassenc.dll -Destination release\
+          Copy-Item BASSPlayer.exe, bass.dll, bass_fx.dll, bassenc.dll, README.html -Destination release\
           Compress-Archive -Path release\* -DestinationPath BASSPlayer-x64.zip
 
       - name: Upload build artifact
