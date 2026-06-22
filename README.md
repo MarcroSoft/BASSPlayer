@@ -39,27 +39,19 @@ You need to fetch the BASS libraries yourself from un4seen (free for non-commerc
 1. Download **BASS**, **BASS_FX** and **BASSenc** from https://www.un4seen.com
 2. Place in the same folder as `player.c`:
    - Headers: `bass.h`, `bass_fx.h`, `bassenc.h`
-   - Import libs for MinGW: `libbass.a`, `libbass_fx.a`, `libbassenc.a`
-     (or use the `.lib` files; MinGW can often link against them directly, otherwise regenerate with `dlltool`)
-   - The DLLs next to `player.exe`: `bass.dll`, `bass_fx.dll`, `bassenc.dll`
+   - Import libs: `bass.lib`, `bass_fx.lib`, `bassenc.lib`
+   - The DLLs next to `BASSPlayer.exe`: `bass.dll`, `bass_fx.dll`, `bassenc.dll`
 3. (Optional) Create the `plugins\` folder and put extra BASS add-on DLLs there.
-4. Build:
+4. Build with MSVC (from a Developer Command Prompt):
 
 ```
 build.bat
 ```
 
-or
+which runs:
 
 ```
-mingw32-make
-```
-
-### MSVC instead of MinGW
-Use the import libs `bass.lib`, `bass_fx.lib`, `bassenc.lib`:
-
-```
-cl /O2 player.c /link bass.lib bass_fx.lib bassenc.lib comctl32.lib comdlg32.lib user32.lib gdi32.lib
+cl /O2 player.c /link bass.lib bass_fx.lib bassenc.lib comctl32.lib comdlg32.lib user32.lib gdi32.lib /OUT:BASSPlayer.exe
 ```
 
 ## Notes

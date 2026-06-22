@@ -214,7 +214,7 @@ static void changeVol(float delta)
     BASS_ChannelGetAttribute(g_stream, BASS_ATTRIB_VOL, &v);
     v += delta;
     if (v < 0.0f) v = 0.0f;
-    if (v > 4.0f) v = 1.0f;
+    if (v > 3.0f) v = 3.0f;   /* up to 300 % */
     BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_VOL, v);
 }
 
