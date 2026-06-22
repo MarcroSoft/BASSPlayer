@@ -55,6 +55,11 @@ static LRESULT CALLBACK ListProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             return 0;                 /* used -> swallow the key */
         /* otherwise: fall through to the list (navigation) */
     }
+    /* Swallow WM_CHAR so the list's type-to-search doesn't move the
+     * selection when our hotkeys (T, V, S, ...) are pressed. Arrow
+     * navigation uses WM_KEYDOWN, so it is unaffected. */
+    if (msg == WM_CHAR)
+        return 0;
     return CallWindowProc(g_listProc, hwnd, msg, wp, lp);
 }
 
