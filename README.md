@@ -1,69 +1,69 @@
 # BASS Player
 
-En minimal native Windows-afspiller i C bygget på **BASS**, **BASS_FX** og **BASSenc**.
-Status vises i en rigtig `SysListView32`, og alt styres fra tastaturet.
+A minimal native Windows player in C built on **BASS**, **BASS_FX** and **BASSenc**.
+Status is shown in a real `SysListView32`, and everything is controlled from the keyboard.
 
-## Funktioner
+## Features
 
-- Afspilning via BASS med pluginindlæsning (alle `.dll` i mappen `plugins\` indlæses med `BASS_PluginLoad`, fx `bassflac.dll`, `bassopus.dll`, `bass_aac.dll`).
-- Tempoændring i realtid med BASS_FX (`BASS_ATTRIB_TEMPO`) — uden at ændre toneleje.
-- Optagelse af det der afspilles lige nu til `recording.wav` med BASSenc (`BASS_Encode_Start` / `BASS_Encode_Stop`).
-- Tid, status, længde, tempo m.m. vises løbende i en `SysListView32` (report-view).
+- Playback via BASS with plugin loading (all `.dll` in the `plugins\` folder are loaded with `BASS_PluginLoad`, e.g. `bassflac.dll`, `bassopus.dll`, `bass_aac.dll`).
+- Real-time tempo change with BASS_FX (`BASS_ATTRIB_TEMPO`) — without changing the pitch.
+- Recording of what is currently playing to `recording.wav` with BASSenc (`BASS_Encode_Start` / `BASS_Encode_Stop`).
+- Time, status, length, tempo etc. are shown continuously in a `SysListView32` (report view).
 
-## Tastaturgenveje
+## Keyboard shortcuts
 
-| Tast | Handling |
+| Key | Action |
 |------|----------|
-| `O` | Åbn fil |
-| `Mellemrum` | Play / pause |
-| `S` | Stop (spol til start) |
-| `←` / `→` | Spol −5 / +5 sek |
-| `Ctrl+←` / `Ctrl+→` | Spol −30 / +30 sek |
-| `G` | Gå til tidspunkt (indtast minutter, fx `3` eller `3.5`) |
-| `↑` / `↓` | Naviger i listen |
-| `T` / `Shift+T` | Tempo ned / op (−5 % / +5 %) |
-| `Ctrl+T` | Nulstil tempo |
-| `I` | Indtast præcis tempoværdi (fx `-10` eller `20`) |
-| `V` / `Shift+V` | Volumen ned / op (−5 % / +5 %) |
-| `Ctrl+V` | Nulstil volumen (100 %) |
-| `R` | Start optagelse → `recording_ÅÅÅÅMMDD_TTMMSS.wav` |
-| `E` | Stop optagelse |
-| `Esc` | Afslut |
+| `O` | Open file |
+| `Space` | Play / pause |
+| `S` | Stop (rewind to start) |
+| `←` / `→` | Seek −5 / +5 sec |
+| `Ctrl+←` / `Ctrl+→` | Seek −30 / +30 sec |
+| `G` | Go to time (enter minutes, e.g. `3` or `3.5`) |
+| `↑` / `↓` | Navigate the list |
+| `T` / `Shift+T` | Tempo down / up (−5 % / +5 %) |
+| `Ctrl+T` | Reset tempo |
+| `I` | Enter exact tempo value (e.g. `-10` or `20`) |
+| `V` / `Shift+V` | Volume down / up (−5 % / +5 %) |
+| `Ctrl+V` | Reset volume (100 %) |
+| `R` | Start recording → `recording_YYYYMMDD_HHMMSS.wav` |
+| `E` | Stop recording |
+| `Esc` | Quit |
 
-> Listen (`SysListView32`) er subklasset og får automatisk fokus. Taster den ikke selv bruger (fx pil op/ned) sendes videre, så du frit kan navigere i listen.
+> The list (`SysListView32`) is subclassed and gets focus automatically. Keys it doesn't use itself (e.g. arrow up/down) are passed on, so you can freely navigate the list.
 
-## Sådan bygger du
+## How to build
 
-Du skal selv hente BASS-bibliotekerne fra un4seen (gratis til ikke-kommerciel brug):
+You need to fetch the BASS libraries yourself from un4seen (free for non-commercial use):
 
-1. Hent **BASS**, **BASS_FX** og **BASSenc** fra https://www.un4seen.com
-2. Læg i samme mappe som `player.c`:
-   - Headere: `bass.h`, `bass_fx.h`, `bassenc.h`
-   - Import-libs til MinGW: `libbass.a`, `libbass_fx.a`, `libbassenc.a`
-     (eller brug `.lib`-filerne; MinGW kan ofte linke mod dem direkte, ellers gen-generér med `dlltool`)
-   - DLL'erne ved siden af `player.exe`: `bass.dll`, `bass_fx.dll`, `bassenc.dll`
-3. (Valgfrit) Opret mappen `plugins\` og læg ekstra BASS-add-on-DLL'er der.
-4. Byg:
+1. Download **BASS**, **BASS_FX** and **BASSenc** from https://www.un4seen.com
+2. Place in the same folder as `player.c`:
+   - Headers: `bass.h`, `bass_fx.h`, `bassenc.h`
+   - Import libs for MinGW: `libbass.a`, `libbass_fx.a`, `libbassenc.a`
+     (or use the `.lib` files; MinGW can often link against them directly, otherwise regenerate with `dlltool`)
+   - The DLLs next to `player.exe`: `bass.dll`, `bass_fx.dll`, `bassenc.dll`
+3. (Optional) Create the `plugins\` folder and put extra BASS add-on DLLs there.
+4. Build:
 
 ```
 build.bat
 ```
 
-eller
+or
 
 ```
 mingw32-make
 ```
 
-### MSVC i stedet for MinGW
-Brug import-libsene `bass.lib`, `bass_fx.lib`, `bassenc.lib`:
+### MSVC instead of MinGW
+Use the import libs `bass.lib`, `bass_fx.lib`, `bassenc.lib`:
 
 ```
 cl /O2 player.c /link bass.lib bass_fx.lib bassenc.lib comctl32.lib comdlg32.lib user32.lib gdi32.lib
 ```
 
-## Bemærkninger
+## Notes
 
-- Streamen oprettes som dekoderkanal (`BASS_STREAM_DECODE`) og pakkes ind i `BASS_FX_TempoCreate`, så tempo kan ændres live. `BASS_FX_FREESOURCE` sørger for at kilden frigives automatisk.
-- Optagelsen fanger præcis de samples den afspillede kanal leverer — inkl. tempoændringen — fordi encoderen hænges på tempo-streamen.
-- Hver optagelse får et unikt navn med dato og tid (`recording_20260620_143005.wav`), så tidligere optagelser ikke overskrives. Filen skrives som 16-bit PCM-WAV. Kanalen kører i float, så `BASS_ENCODE_FP_16BIT` konverterer til 16-bit heltal under optagelsen (ellers var det blevet en 32-bit float-WAV). Vil du have MP3/OGG i stedet, kan BASSenc kobles til en kommandolinje-encoder (`BASS_Encode_Start` med en encoder-kommando).
+- The stream is created as a decoder channel (`BASS_STREAM_DECODE`) and wrapped in `BASS_FX_TempoCreate`, so the tempo can be changed live. `BASS_FX_FREESOURCE` ensures the source is freed automatically.
+- The recording captures exactly the samples the playing channel delivers — including the tempo change — because the encoder is attached to the tempo stream.
+- Each recording gets a unique name with date and time (`recording_20260620_143005.wav`), so earlier recordings are not overwritten. The file is written as 16-bit PCM WAV. The channel runs in float, so `BASS_ENCODE_FP_16BIT` converts to 16-bit integer during recording (otherwise it would have been a 32-bit float WAV). If you want MP3/OGG instead, BASSenc can be hooked up to a command-line encoder (`BASS_Encode_Start` with an encoder command).

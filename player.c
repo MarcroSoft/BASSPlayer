@@ -1,19 +1,19 @@
 /*
- * Minimal BASS-afspiller med tempo (BASS_FX), optagelse (BASSenc),
- * pluginindlaesning og statusvisning i en SysListView32.
+ * Minimal BASS player with tempo (BASS_FX), recording (BASSenc),
+ * plugin loading and status display in a SysListView32.
  *
- * Tastatur:
- *   O           Aabn fil
- *   Mellemrum   Play / Pause
- *   S           Stop (spoler til start)
- *   Venstre/Hojre  Spol -5 / +5 sek
- *   Op/Ned      Tempo +5 % / -5 %
- *   T           Nulstil tempo til 0 %
- *   R           Start optagelse af det der afspilles (-> recording.wav)
- *   E           Stop optagelse
- *   Esc         Afslut
+ * Keyboard:
+ *   O           Open file
+ *   Space       Play / Pause
+ *   S           Stop (rewind to start)
+ *   Left/Right  Seek -5 / +5 sec
+ *   Up/Down     Tempo +5 % / -5 %
+ *   T           Reset tempo to 0 %
+ *   R           Start recording what is playing (-> recording.wav)
+ *   E           Stop recording
+ *   Esc         Quit
  *
- * Bygges med MinGW-w64 (se Makefile / build.bat).
+ * Build with MinGW-w64 (see Makefile / build.bat).
  */
 
 #include <windows.h>
@@ -29,16 +29,16 @@
 #define ID_TIMER    1
 #define PLUGIN_DIR  "plugins"
 
-/* ---- global tilstand ---- */
+/* ---- global state ---- */
 static HWND      g_hList   = NULL;     /* SysListView32 */
-static WNDPROC   g_listProc = NULL;    /* original listview-procedure */
-static DWORD     g_stream  = 0;        /* tempo-stream (det vi afspiller) */
-static float     g_tempo   = 0.0f;     /* tempoaendring i procent */
-static BOOL      g_rec     = FALSE;    /* optager lige nu? */
+static WNDPROC   g_listProc = NULL;    /* original listview procedure */
+static DWORD     g_stream  = 0;        /* tempo stream (what we play) */
+static float     g_tempo   = 0.0f;     /* tempo change in percent */
+static BOOL      g_rec     = FALSE;    /* recording right now? */
 static char      g_file[MAX_PATH] = "";
-static char      g_recFile[MAX_PATH] = "";  /* aktuelt optagefilnavn */
+static char      g_recFile[MAX_PATH] = "";  /* current recording filename */
 
-/* ---- ListView raekker ---- */
+/* ---- ListView rows ---- */
 enum {
     ROW_FILE = 0, ROW_STATUS, ROW_POS, ROW_LEN,
     ROW_TEMPO, ROW_VOL, ROW_REC, ROW_COUNT
@@ -46,14 +46,14 @@ enum {
 
 static BOOL handleKey(HWND hwnd, WPARAM key);   /* forward */
 
-/* Subklasse: listen sender taster til vores handler foerst.
- * Taster vi ikke bruger (fx pil op/ned) gaar videre til listen selv. */
+/* Subclass: the list sends keys to our handler first.
+ * Keys we don't use (e.g. arrow up/down) pass through to the list itself. */
 static LRESULT CALLBACK ListProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     if (msg == WM_KEYDOWN) {
         if (handleKey(GetParent(hwnd), wp))
-            return 0;                 /* brugt -> slug tasten */
-        /* ellers: fald igennem til listen (navigation) */
+            return 0;                 /* used -> swallow the key */
+        /* otherwise: fall through to the list (navigation) */
     }
     return CallWindowProc(g_listProc, hwnd, msg, wp, lp);
 }
@@ -85,25 +85,25 @@ static void buildList(HWND hwnd)
 
     LVCOLUMN col = {0};
     col.mask = LVCF_TEXT | LVCF_WIDTH;
-    col.cx = 150; col.pszText = (LPSTR)"Egenskab";
+    col.cx = 150; col.pszText = (LPSTR)"Property";
     ListView_InsertColumn(g_hList, 0, &col);
-    col.cx = 320; col.pszText = (LPSTR)"Vaerdi";
+    col.cx = 320; col.pszText = (LPSTR)"Value";
     ListView_InsertColumn(g_hList, 1, &col);
 
-    lvAddRow(ROW_FILE,   "Fil");
+    lvAddRow(ROW_FILE,   "File");
     lvAddRow(ROW_STATUS, "Status");
     lvAddRow(ROW_POS,    "Position");
-    lvAddRow(ROW_LEN,    "Laengde");
+    lvAddRow(ROW_LEN,    "Length");
     lvAddRow(ROW_TEMPO,  "Tempo");
-    lvAddRow(ROW_VOL,    "Volumen");
-    lvAddRow(ROW_REC,    "Optager");
+    lvAddRow(ROW_VOL,    "Volume");
+    lvAddRow(ROW_REC,    "Recording");
 
-    /* subklasse listen, saa den selv haandterer tastaturet */
+    /* subclass the list so it handles the keyboard itself */
     g_listProc = (WNDPROC)SetWindowLongPtr(g_hList, GWLP_WNDPROC, (LONG_PTR)ListProc);
     SetFocus(g_hList);
 }
 
-/* ---- pluginindlaesning: alle .dll i ./plugins ---- */
+/* ---- plugin loading: all .dll in ./plugins ---- */
 static void loadPlugins(void)
 {
     WIN32_FIND_DATA fd;
@@ -114,12 +114,12 @@ static void loadPlugins(void)
     do {
         char full[MAX_PATH];
         snprintf(full, sizeof(full), "%s\\%s", PLUGIN_DIR, fd.cFileName);
-        BASS_PluginLoad(full, 0);   /* ignorerer fejl for ikke-bass dll'er */
+        BASS_PluginLoad(full, 0);   /* ignore errors for non-bass dlls */
     } while (FindNextFile(h, &fd));
     FindClose(h);
 }
 
-/* ---- hjaelp: formatter sekunder som m:ss ---- */
+/* ---- helper: format seconds as m:ss ---- */
 static void fmtTime(double secs, char *out, size_t n)
 {
     if (secs < 0) secs = 0;
@@ -140,19 +140,19 @@ static void closeStream(void)
     stopEncode();
     if (g_stream) {
         BASS_ChannelStop(g_stream);
-        BASS_StreamFree(g_stream);   /* BASS_FX_FREESOURCE frigiver kilden */
+        BASS_StreamFree(g_stream);   /* BASS_FX_FREESOURCE frees the source */
         g_stream = 0;
     }
 }
 
-/* ---- aabn fil og opret tempo-stream ---- */
+/* ---- open file and create tempo stream ---- */
 static void openFile(HWND hwnd)
 {
     char path[MAX_PATH] = "";
     OPENFILENAME ofn = {0};
     ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = hwnd;
-    ofn.lpstrFilter = "Lydfiler\0*.mp3;*.ogg;*.wav;*.flac;*.aac;*.m4a;*.opus\0Alle filer\0*.*\0";
+    ofn.lpstrFilter = "Audio files\0*.mp3;*.ogg;*.wav;*.flac;*.aac;*.m4a;*.opus\0All files\0*.*\0";
     ofn.lpstrFile = path;
     ofn.nMaxFile = sizeof(path);
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
@@ -160,17 +160,17 @@ static void openFile(HWND hwnd)
 
     closeStream();
 
-    /* dekoderkanal -> tempo-wrapper. Float for bedst kvalitet. */
+    /* decoder channel -> tempo wrapper. Float for best quality. */
     DWORD dec = BASS_StreamCreateFile(FALSE, path, 0, 0,
         BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT);
     if (!dec) {
-        MessageBox(hwnd, "Kunne ikke aabne filen.", APP_TITLE, MB_ICONERROR);
+        MessageBox(hwnd, "Could not open the file.", APP_TITLE, MB_ICONERROR);
         return;
     }
     g_stream = BASS_FX_TempoCreate(dec, BASS_FX_FREESOURCE);
     if (!g_stream) {
         BASS_StreamFree(dec);
-        MessageBox(hwnd, "Kunne ikke oprette tempo-stream.", APP_TITLE, MB_ICONERROR);
+        MessageBox(hwnd, "Could not create tempo stream.", APP_TITLE, MB_ICONERROR);
         return;
     }
 
@@ -180,7 +180,7 @@ static void openFile(HWND hwnd)
     BASS_ChannelPlay(g_stream, FALSE);
 }
 
-/* ---- spol relativt ---- */
+/* ---- seek relative ---- */
 static void seekBy(double deltaSecs)
 {
     if (!g_stream) return;
@@ -196,7 +196,7 @@ static void changeTempo(float delta)
 {
     if (!g_stream) return;
     g_tempo += delta;
-    if (g_tempo < -90.0f) g_tempo = -90.0f;   /* BASS_FX-graense */
+    if (g_tempo < -90.0f) g_tempo = -90.0f;   /* BASS_FX limit */
     if (g_tempo > 5000.0f) g_tempo = 5000.0f;
     BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO, g_tempo);
 }
@@ -239,25 +239,25 @@ static void stopPlay(void)
     BASS_ChannelSetPosition(g_stream, 0, BASS_POS_BYTE);
 }
 
-/* ---- start optagelse af det der afspilles ---- */
+/* ---- start recording what is playing ---- */
 static void startEncode(HWND hwnd)
 {
     if (!g_stream || g_rec) return;
-    /* unikt filnavn med dato+tid, saa intet overskrives */
+    /* unique filename with date+time so nothing is overwritten */
     SYSTEMTIME t; GetLocalTime(&t);
     snprintf(g_recFile, sizeof(g_recFile),
         "recording_%04d%02d%02d_%02d%02d%02d.wav",
         t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
-    /* BASS_ENCODE_PCM skriver en WAV. Kanalen er float, saa
-     * BASS_ENCODE_FP_16BIT konverterer til 16-bit heltal (ikke float). */
+    /* BASS_ENCODE_PCM writes a WAV. The channel is float, so
+     * BASS_ENCODE_FP_16BIT converts to 16-bit integer (not float). */
     if (BASS_Encode_Start(g_stream, g_recFile,
             BASS_ENCODE_PCM, NULL, NULL))
         g_rec = TRUE;
     else
-        MessageBox(hwnd, "Kunne ikke starte optagelse.", APP_TITLE, MB_ICONERROR);
+        MessageBox(hwnd, "Could not start recording.", APP_TITLE, MB_ICONERROR);
 }
 
-/* ---- opdater ListView ---- */
+/* ---- update ListView ---- */
 static void updateList(void)
 {
     char buf[256];
@@ -268,9 +268,9 @@ static void updateList(void)
 
         DWORD st = BASS_ChannelIsActive(g_stream);
         lvSetText(ROW_STATUS,
-            st == BASS_ACTIVE_PLAYING ? "Afspiller" :
-            st == BASS_ACTIVE_PAUSED  ? "Pause"     :
-            st == BASS_ACTIVE_STALLED ? "Buffrer"   : "Stoppet");
+            st == BASS_ACTIVE_PLAYING ? "Playing" :
+            st == BASS_ACTIVE_PAUSED  ? "Paused"  :
+            st == BASS_ACTIVE_STALLED ? "Buffering" : "Stopped");
 
         char t[32];
         QWORD pos = BASS_ChannelGetPosition(g_stream, BASS_POS_BYTE);
@@ -288,8 +288,8 @@ static void updateList(void)
         snprintf(buf, sizeof(buf), "%.0f %%", vol * 100.0f);
         lvSetText(ROW_VOL, buf);
     } else {
-        lvSetText(ROW_FILE, "(ingen)");
-        lvSetText(ROW_STATUS, "Stoppet");
+        lvSetText(ROW_FILE, "(none)");
+        lvSetText(ROW_STATUS, "Stopped");
         lvSetText(ROW_POS, "0:00");
         lvSetText(ROW_LEN, "0:00");
         lvSetText(ROW_TEMPO, "+0 %");
@@ -297,14 +297,14 @@ static void updateList(void)
     }
     if (g_rec) {
         char rb[MAX_PATH + 8];
-        snprintf(rb, sizeof(rb), "JA -> %s", g_recFile);
+        snprintf(rb, sizeof(rb), "YES -> %s", g_recFile);
         lvSetText(ROW_REC, rb);
     } else {
-        lvSetText(ROW_REC, "nej");
+        lvSetText(ROW_REC, "no");
     }
 }
 
-/* ---- lille modal input-dialog (returnerer indtastet tekst) ---- */
+/* ---- small modal input dialog (returns the entered text) ---- */
 static char g_inText[64];
 static BOOL g_inDone, g_inOk;
 
@@ -340,7 +340,7 @@ static BOOL inputBox(HWND parent, const char *prompt, char *out, int outlen)
     g_inDone = g_inOk = FALSE; g_inText[0] = 0;
 
     RECT pr; GetWindowRect(parent, &pr);
-    HWND dlg = CreateWindowEx(WS_EX_DLGMODALFRAME, "InputBox", "Gaa til",
+    HWND dlg = CreateWindowEx(WS_EX_DLGMODALFRAME, "InputBox", "Go to",
         WS_POPUP | WS_CAPTION | WS_SYSMENU,
         pr.left + 50, pr.top + 60, 300, 150, parent, NULL, hi, NULL);
 
@@ -353,7 +353,7 @@ static BOOL inputBox(HWND parent, const char *prompt, char *out, int outlen)
     HWND ok = CreateWindow("BUTTON", "OK",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
         56, 78, 80, 28, dlg, (HMENU)IDOK, hi, NULL);
-    HWND ca = CreateWindow("BUTTON", "Annuller",
+    HWND ca = CreateWindow("BUTTON", "Cancel",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP,
         146, 78, 100, 28, dlg, (HMENU)IDCANCEL, hi, NULL);
     SendMessage(st, WM_SETFONT, (WPARAM)font, TRUE);
@@ -379,12 +379,12 @@ static BOOL inputBox(HWND parent, const char *prompt, char *out, int outlen)
     return g_inOk;
 }
 
-/* indtast en praecis tempovaerdi i procent (fx -10 eller 25) */
+/* enter an exact tempo value in percent (e.g. -10 or 25) */
 static void inputTempo(HWND hwnd)
 {
     if (!g_stream) return;
     char buf[64];
-    if (inputBox(hwnd, "Tempo i procent (fx -10 eller 20):", buf, sizeof(buf))) {
+    if (inputBox(hwnd, "Tempo in percent (e.g. -10 or 20):", buf, sizeof(buf))) {
         float v = (float)atof(buf);
         if (v < -90.0f) v = -90.0f;
         if (v > 5000.0f) v = 5000.0f;
@@ -393,12 +393,12 @@ static void inputTempo(HWND hwnd)
     }
 }
 
-/* spring til et bestemt tidspunkt (minutter, decimal tilladt: 3.5 = 3:30) */
+/* jump to a specific time (minutes, decimals allowed: 3.5 = 3:30) */
 static void gotoMinutes(HWND hwnd)
 {
     if (!g_stream) return;
     char buf[64];
-    if (inputBox(hwnd, "Gaa til (minutter, fx 3 eller 3.5):", buf, sizeof(buf))) {
+    if (inputBox(hwnd, "Go to (minutes, e.g. 3 or 3.5):", buf, sizeof(buf))) {
         double secs = atof(buf) * 60.0;
         if (secs < 0) secs = 0;
         BASS_ChannelSetPosition(g_stream,
@@ -406,8 +406,8 @@ static void gotoMinutes(HWND hwnd)
     }
 }
 
-/* Returnerer TRUE hvis tasten blev brugt (og skal sluges),
- * FALSE hvis listen selv skal have den (fx pil op/ned til navigation). */
+/* Returns TRUE if the key was used (and should be swallowed),
+ * FALSE if the list should get it itself (e.g. arrow up/down for navigation). */
 static BOOL handleKey(HWND hwnd, WPARAM key)
 {
     BOOL shift = (GetKeyState(VK_SHIFT)   & 0x8000) != 0;
@@ -423,17 +423,17 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
     case 'G':       gotoMinutes(hwnd); break;
     case 'I':       inputTempo(hwnd); break;
     case 'T':       if (ctrl)       resetTempo();
-                    else if (shift)  changeTempo(+5.0f);   /* Shift+T: op   */
-                    else             changeTempo(-5.0f);   /* T: ned        */
+                    else if (shift)  changeTempo(+5.0f);   /* Shift+T: up   */
+                    else             changeTempo(-5.0f);   /* T: down       */
                     break;
     case 'V':       if (ctrl)       resetVol();
-                    else if (shift)  changeVol(+0.05f);    /* Shift+V: op   */
-                    else             changeVol(-0.05f);    /* V: ned        */
+                    else if (shift)  changeVol(+0.05f);    /* Shift+V: up   */
+                    else             changeVol(-0.05f);    /* V: down       */
                     break;
     case 'R':       startEncode(hwnd); break;
     case 'E':       stopEncode(); break;
 //    case VK_ESCAPE: DestroyWindow(hwnd); break;
-    default:        used = FALSE; break;   /* pil op/ned m.m. -> listen */
+    default:        used = FALSE; break;   /* arrow up/down etc. -> list */
     }
     if (used) updateList();
     return used;
@@ -450,7 +450,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         MoveWindow(g_hList, 0, 0, LOWORD(lp), HIWORD(lp), TRUE);
         return 0;
     case WM_SETFOCUS:
-        SetFocus(g_hList);   /* hold altid fokus paa listen */
+        SetFocus(g_hList);   /* always keep focus on the list */
         return 0;
     case WM_TIMER:
         updateList();
@@ -471,9 +471,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE prev, LPSTR cmd, int show)
 {
     (void)prev; (void)cmd;
 
-    /* tjek runtime-version af BASS_FX */
+    /* check runtime version of BASS_FX */
     if (HIWORD(BASS_FX_GetVersion()) != BASSVERSION) {
-        MessageBox(NULL, "Forkert bass_fx.dll version.", APP_TITLE, MB_ICONERROR);
+        MessageBox(NULL, "Wrong bass_fx.dll version.", APP_TITLE, MB_ICONERROR);
         return 1;
     }
 
@@ -481,14 +481,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE prev, LPSTR cmd, int show)
     InitCommonControlsEx(&icc);
 
     if (!BASS_Init(-1, 44100, 0, NULL, NULL)) {
-        MessageBox(NULL, "BASS_Init fejlede.", APP_TITLE, MB_ICONERROR);
+        MessageBox(NULL, "BASS_Init failed.", APP_TITLE, MB_ICONERROR);
         return 1;
     }
-    /* mindre buffer = lavere latenstid (default er 500 ms).
-     * BASS_CONFIG_BUFFER skal saettes FOER streams oprettes.
-     * Saet evt. hoejere hvis lyden hakker. */
-    BASS_SetConfig(BASS_CONFIG_BUFFER, 100);       /* afspilningsbuffer i ms */
-    BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 10);  /* paafyldning hver 10 ms */
+    /* smaller buffer = lower latency (default is 500 ms).
+     * BASS_CONFIG_BUFFER must be set BEFORE streams are created.
+     * Increase it if the sound stutters. */
+    BASS_SetConfig(BASS_CONFIG_BUFFER, 100);       /* playback buffer in ms */
+    BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 10);  /* refill every 10 ms */
     loadPlugins();
 
     WNDCLASS wc = {0};
@@ -504,7 +504,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE prev, LPSTR cmd, int show)
         NULL, NULL, hInst, NULL);
     ShowWindow(hwnd, show);
     UpdateWindow(hwnd);
-    SetFocus(hwnd);   /* hovedvinduet modtager taster, ikke listen */
+    SetFocus(hwnd);   /* the main window receives keys, not the list */
 
     MSG m;
     while (GetMessage(&m, NULL, 0, 0)) {
