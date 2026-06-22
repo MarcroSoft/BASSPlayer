@@ -30,19 +30,19 @@ jobs:
         shell: pwsh
         run: |
           # bass
-          Copy-Item bass\bass.h         -Destination .
-          Copy-Item bass\x64\bass.lib   -Destination .
-          Copy-Item bass\x64\bass.dll   -Destination .
+          Copy-Item bass\c\bass.h         -Destination .
+          Copy-Item bass\c\x64\bass.lib   -Destination .
+          Copy-Item bass\x64\bass.dll     -Destination .
 
           # bass_fx
-          Copy-Item bass_fx\bass_fx.h        -Destination .
-          Copy-Item bass_fx\x64\bass_fx.lib  -Destination .
-          Copy-Item bass_fx\x64\bass_fx.dll  -Destination .
+          Copy-Item bass_fx\c\bass_fx.h        -Destination .
+          Copy-Item bass_fx\c\x64\bass_fx.lib  -Destination .
+          Copy-Item bass_fx\x64\bass_fx.dll    -Destination .
 
           # bassenc
-          Copy-Item bassenc\bassenc.h        -Destination .
-          Copy-Item bassenc\x64\bassenc.lib  -Destination .
-          Copy-Item bassenc\x64\bassenc.dll  -Destination .
+          Copy-Item bassenc\c\bassenc.h        -Destination .
+          Copy-Item bassenc\c\x64\bassenc.lib  -Destination .
+          Copy-Item bassenc\x64\bassenc.dll    -Destination .
 
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
