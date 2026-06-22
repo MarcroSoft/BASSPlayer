@@ -17,9 +17,9 @@ jobs:
         shell: pwsh
         run: |
           $libs = @(
-            @{ name = "bass";    url = "https://www.un4seen.com/stuff/bass.zip" },
-            @{ name = "bass_fx"; url = "https://www.un4seen.com/stuff/bass_fx.zip" },
-            @{ name = "bassenc"; url = "https://www.un4seen.com/stuff/bassenc.zip" }
+            @{ name = "bass";    url = "https://www.un4seen.com/files/bass24.zip" },
+            @{ name = "bass_fx"; url = "https://www.un4seen.com/files/z/0/bass_fx24.zip" },
+            @{ name = "bassenc"; url = "https://www.un4seen.com/files/bassenc24.zip" }
           )
           foreach ($lib in $libs) {
             Invoke-WebRequest -Uri $lib.url -OutFile "$($lib.name).zip" -UserAgent "Mozilla/5.0"
