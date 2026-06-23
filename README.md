@@ -1,13 +1,15 @@
-# BASS Player
+﻿# BASS Player
 
 A minimal native Windows player in C built on **BASS**, **BASS_FX** and **BASSenc**.
 Status is shown in a real `SysListView32`, and everything is controlled from the keyboard.
 
+Please Note: Virtually all of this code is written by AI, so there might be some bugs here and there. The program has been tested and found to be working.
+
 ## Features
 
-- Playback via BASS with plugin loading (all `.dll` in the `plugins\` folder are loaded with `BASS_PluginLoad`, e.g. `bassflac.dll`, `bassopus.dll`, `bass_aac.dll`).
+- Playback via BASS with plugin loading (all `.dll` files in the `plugins\` folder are loaded with `BASS_PluginLoad`, e.g. `bassflac.dll`, `bassopus.dll`, `bass_aac.dll`).
 - Real-time tempo change with BASS_FX (`BASS_ATTRIB_TEMPO`) — without changing the pitch.
-- Recording of what is currently playing to `recording.wav` with BASSenc (`BASS_Encode_Start` / `BASS_Encode_Stop`).
+- Recording of what is currently playing to a `.wav` file with BASSenc (`BASS_Encode_Start` / `BASS_Encode_Stop`).
 - Time, status, length, tempo etc. are shown continuously in a `SysListView32` (report view).
 
 ## Keyboard shortcuts
@@ -26,7 +28,7 @@ Status is shown in a real `SysListView32`, and everything is controlled from the
 | `I` | Enter exact tempo value (e.g. `-10` or `20`) |
 | `V` / `Shift+V` | Volume down / up (−5 % / +5 %) |
 | `Ctrl+V` | Reset volume (100 %) |
-| `R` | Start recording → `recording_YYYYMMDD_HHMMSS.wav` |
+| `R` | Start recording |
 | `E` | Stop recording |
 | `Esc` | Quit |
 
