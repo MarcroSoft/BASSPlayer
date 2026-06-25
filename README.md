@@ -26,18 +26,18 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 | `G` | Go to time (enter minutes, e.g. `3` or `3.5`) |
 | `↑` / `↓` | Navigate the list |
 | `T` / `Shift+T` | Tempo down / up (−5 % / +5 %) |
-| `Ctrl+T` | Reset tempo |
+| `Ctrl+T` / `Backspace` | Reset tempo to 0 % |
 | `I` | Enter exact tempo value (e.g. `-10` or `20`) |
 | `V` / `Shift+V` | Volume down / up (−5 % / +5 %) |
 | `Ctrl+V` | Reset volume (100 %) |
 | `1`…`9`, `0` | Cut EQ band 1 dB (`1` = 80 Hz … `0` = 14 kHz); top row or numpad |
 | `Shift`+`1`…`9`, `0` | Boost that EQ band 1 dB (range ±15 dB) |
-| `Backspace` | Reset all EQ bands to flat |
+| `Ctrl+I` | Reset all EQ bands to flat |
 | `R` | Start recording |
 | `E` | Stop recording |
 | `Esc` | Quit |
 
-> **Equalizer:** the two `EQ …` rows show all 10 bands as `freq:gain` cells — bands 1-5 (80-900 Hz) on the first row, 6-10 (1.8-14 kHz) on the second. Each band has its own number key (`1` = 80 Hz … `0` = 14 kHz): press it to cut that band, or `Shift`+the number to boost it — just like the volume keys. `Backspace` flattens everything. The setting persists when you open another file.
+> **Equalizer:** the two `EQ …` rows show all 10 bands as `freq:gain` cells — bands 1-5 (80-900 Hz) on the first row, 6-10 (1.8-14 kHz) on the second. Each band has its own number key (`1` = 80 Hz … `0` = 14 kHz): press it to cut that band, or `Shift`+the number to boost it — just like the volume keys. `Ctrl+I` flattens everything. The setting persists when you open another file.
 
 > The list (`SysListView32`) is subclassed and gets focus automatically. Keys it doesn't use itself (e.g. arrow up/down) are passed on, so you can freely navigate the list.
 

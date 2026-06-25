@@ -8,13 +8,14 @@
  *   Enter       Play from the start
  *   Pause/Break Play / Pause (global hotkey, works even without focus)
  *   Left/Right  Seek -5 / +5 sec
- *   Up/Down     Tempo +5 % / -5 %
- *   T           Reset tempo to 0 %
+ *   T / Shift+T Tempo down / up (-5 % / +5 %)
+ *   I           Enter exact tempo value
+ *   Ctrl+T / Backspace  Reset tempo to 0 %
  *   R           Start recording what is playing (-> recording.wav)
  *   E           Stop recording
  *   1..9, 0          Cut EQ band 1 dB (1 = 80 Hz .. 0 = 14 kHz)  [10-band EQ]
  *   Shift+1..9, 0    Boost that EQ band 1 dB
- *   Backspace        Reset all EQ bands to flat
+ *   Ctrl+I           Reset all EQ bands to flat
  *   Esc         Quit
  *
  * Build with MinGW-w64 (see Makefile / build.bat).
@@ -552,18 +553,19 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
     case VK_LEFT:   seekBy(ctrl ? -30.0 : -5.0); break;
     case VK_RIGHT:  seekBy(ctrl ? +30.0 : +5.0); break;
     case 'G':       gotoMinutes(hwnd); break;
-    case 'I':       inputTempo(hwnd); break;
-    case 'T':       if (ctrl)       resetTempo();
-                    else if (shift)  changeTempo(+5.0f);   /* Shift+T: up   */
-                    else             changeTempo(-5.0f);   /* T: down       */
+    case 'I':       if (ctrl) resetEq();          /* Ctrl+I: flatten EQ */
+                    else      inputTempo(hwnd);
                     break;
+    case 'T':       if (ctrl)       resetTempo();          /* Ctrl+T: reset */
+                    else            changeTempo(shift ? +5.0f : -5.0f);
+                    break;                                  /* T down / Shift+T up */
     case 'V':       if (ctrl)       resetVol();
                     else if (shift)  changeVol(+0.05f);    /* Shift+V: up   */
                     else             changeVol(-0.05f);    /* V: down       */
                     break;
     case 'R':       startEncode(hwnd); break;
     case 'E':       stopEncode(); break;
-    case VK_BACK:   resetEq(); break;        /* flatten the whole EQ */
+    case VK_BACK:   resetTempo(); break;     /* reset tempo to 0 % */
 //    case VK_ESCAPE: DestroyWindow(hwnd); break;
     default:        used = FALSE; break;   /* arrow up/down etc. -> list */
     }
