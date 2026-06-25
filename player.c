@@ -8,7 +8,7 @@
  *   Enter       Play from the start
  *   Pause/Break Play / Pause (global hotkey, works even without focus)
  *   Left/Right  Seek -5 / +5 sec
- *   T / Shift+T Tempo down / up (-5 % / +5 %)
+ *   T / Shift+T Tempo down / up
  *   Ctrl+T / Backspace  Reset tempo to 0 %
  *   P / Shift+P Pitch down / up (1 semitone);   Ctrl+P reset
  *   Q / Shift+Q Frequency down / up (100 Hz);   Ctrl+Q reset to native
@@ -639,7 +639,7 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
     case 'C':       runCommand(hwnd); break;
     case 'I':       if (ctrl) resetEq(); else used = FALSE; break;  /* Ctrl+I: flatten EQ */
     case 'T':       if (ctrl)       resetTempo();          /* Ctrl+T: reset */
-                    else            changeTempo(shift ? +5.0f : -5.0f);
+                    else            changeTempo(shift ? +1.0f : -1.0f);
                     break;                                  /* T down / Shift+T up */
     case 'P':       if (ctrl)       resetPitch();          /* Ctrl+P: reset */
                     else            changePitch(shift ? +1.0f : -1.0f);
@@ -648,8 +648,8 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
                     else            changeFreq(shift ? +100.0f : -100.0f);
                     break;                                  /* Q down / Shift+Q up (100 Hz) */
     case 'V':       if (ctrl)       resetVol();
-                    else if (shift)  changeVol(+0.05f);    /* Shift+V: up   */
-                    else             changeVol(-0.05f);    /* V: down       */
+                    else if (shift)  changeVol(+0.01f);    /* Shift+V: up   */
+                    else             changeVol(-0.01f);    /* V: down       */
                     break;
     case 'R':       startEncode(hwnd); break;
     case 'E':       stopEncode(); break;
