@@ -9,8 +9,10 @@
  *   Pause/Break Play / Pause (global hotkey, works even without focus)
  *   Left/Right  Seek -5 / +5 sec
  *   T / Shift+T Tempo down / up (-5 % / +5 %)
- *   I           Enter exact tempo value
  *   Ctrl+T / Backspace  Reset tempo to 0 %
+ *   P / Shift+P Pitch down / up (1 semitone);   Ctrl+P reset
+ *   Q / Shift+Q Frequency down / up (100 Hz);   Ctrl+Q reset to native
+ *   C           Command box (e.g. 30, t75, p6, q44100)
  *   R           Start recording what is playing (-> recording.wav)
  *   E           Stop recording
  *   1..9, 0          Cut EQ band 1 dB (1 = 80 Hz .. 0 = 14 kHz)  [10-band EQ]
@@ -41,6 +43,9 @@ static HWND      g_hList   = NULL;     /* SysListView32 */
 static WNDPROC   g_listProc = NULL;    /* original listview procedure */
 static DWORD     g_stream  = 0;        /* tempo stream (what we play) */
 static float     g_tempo   = 0.0f;     /* tempo change in percent */
+static float     g_pitch   = 0.0f;     /* pitch change in semitones */
+static float     g_freq    = 0.0f;     /* playback sample rate in Hz */
+static float     g_freqDef = 0.0f;     /* file's native sample rate (for reset) */
 static BOOL      g_rec     = FALSE;    /* recording right now? */
 static char      g_file[MAX_PATH] = "";
 static char      g_recFile[MAX_PATH] = "";  /* current recording filename */
@@ -59,7 +64,7 @@ static const float g_eqFreq[EQ_BANDS] = {
 /* ---- ListView rows ---- */
 enum {
     ROW_FILE = 0, ROW_STATUS, ROW_POS, ROW_REMAIN, ROW_LEN,
-    ROW_TEMPO, ROW_VOL, ROW_REC,
+    ROW_TEMPO, ROW_PITCH, ROW_FREQ, ROW_VOL, ROW_REC,
     ROW_EQ_LO,                     /* EQ bands 1-5 on one row, 6-10 on the next */
     ROW_EQ_HI,
     ROW_COUNT
@@ -68,11 +73,13 @@ enum {
 /* column-0 label for each logical row */
 static const char *g_rowName[ROW_COUNT] = {
     "File:", "Status:", "Position:", "Remaining:", "Length:",
-    "Tempo:", "Volume:", "Recording:", "Equalizer 1:", "Equalizer 2:"
+    "Tempo:", "Pitch:", "Frequency:", "Volume:", "Recording:",
+    "Equalizer 1:", "Equalizer 2:"
 };
 /* current listview index of each logical row, or -1 while hidden */
 static int  g_rowIdx[ROW_COUNT];
 static BOOL g_showTempo = FALSE;   /* Tempo row hidden while tempo == 0 % */
+static BOOL g_showPitch = FALSE;   /* Pitch row hidden while pitch == 0 */
 static BOOL g_showEq    = FALSE;   /* EQ rows hidden while every band == 0 dB */
 
 static BOOL handleKey(HWND hwnd, WPARAM key);   /* forward */
@@ -110,6 +117,7 @@ static void rebuildRows(void)
     int idx = 0;
     for (int r = 0; r < ROW_COUNT; r++) {
         if (r == ROW_TEMPO && !g_showTempo) continue;
+        if (r == ROW_PITCH && !g_showPitch) continue;
         if ((r == ROW_EQ_LO || r == ROW_EQ_HI) && !g_showEq) continue;
         LVITEM it = {0};
         it.mask = LVIF_TEXT;
@@ -281,7 +289,17 @@ static void openFile(HWND hwnd)
 
     lstrcpyn(g_file, path, MAX_PATH);
     g_tempo = 0.0f;
-    BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO, g_tempo);
+    g_pitch = 0.0f;
+    BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO, 0.0f);
+    BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO_PITCH, 0.0f);
+    /* default frequency = the file's native sample rate */
+    g_freq = 0.0f;
+    BASS_ChannelGetAttribute(g_stream, BASS_ATTRIB_TEMPO_FREQ, &g_freq);
+    if (g_freq <= 0.0f) {            /* fallback to the channel's reported rate */
+        BASS_CHANNELINFO info;
+        if (BASS_ChannelGetInfo(g_stream, &info)) g_freq = (float)info.freq;
+    }
+    g_freqDef = g_freq;
     setupEq();                 /* 10-band EQ (reapplies current gains) */
     BASS_ChannelPlay(g_stream, FALSE);
 }
@@ -298,20 +316,40 @@ static void seekBy(double deltaSecs)
         BASS_ChannelSeconds2Bytes(g_stream, nw), BASS_POS_BYTE);
 }
 
-static void changeTempo(float delta)
+static void setTempo(float v)
 {
     if (!g_stream) return;
-    g_tempo += delta;
-    if (g_tempo < -90.0f) g_tempo = -90.0f;   /* BASS_FX limit */
-    if (g_tempo > 5000.0f) g_tempo = 5000.0f;
+    if (v < -90.0f)  v = -90.0f;   /* BASS_FX limit */
+    if (v > 5000.0f) v = 5000.0f;
+    g_tempo = v;
     BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO, g_tempo);
 }
+static void changeTempo(float delta) { setTempo(g_tempo + delta); }
+static void resetTempo(void)         { setTempo(0.0f); }
 
-static void resetTempo(void)
+/* pitch in semitones (independent of tempo) */
+static void setPitch(float v)
 {
-    g_tempo = 0.0f;
-    if (g_stream) BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO, 0.0f);
+    if (!g_stream) return;
+    if (v < -60.0f) v = -60.0f;
+    if (v >  60.0f) v =  60.0f;
+    g_pitch = v;
+    BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO_PITCH, g_pitch);
 }
+static void changePitch(float delta) { setPitch(g_pitch + delta); }
+static void resetPitch(void)         { setPitch(0.0f); }
+
+/* playback sample rate in Hz (changes speed and pitch together) */
+static void setFreq(float v)
+{
+    if (!g_stream) return;
+    if (v < 1000.0f)   v = 1000.0f;
+    if (v > 192000.0f) v = 192000.0f;
+    g_freq = v;
+    BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO_FREQ, g_freq);
+}
+static void changeFreq(float delta) { setFreq(g_freq + delta); }
+static void resetFreq(void)         { if (g_freqDef > 0.0f) setFreq(g_freqDef); }
 
 static void changeVol(float delta)
 {
@@ -368,12 +406,15 @@ static void updateList(void)
 {
     char buf[256];
 
-    /* show the Tempo row only when tempo != 0, and the EQ rows only when
-     * at least one band is boosted/cut. Rebuild only on a real change. */
+    /* show the Tempo row only when tempo != 0, the Pitch row only when
+     * pitch != 0, and the EQ rows only when at least one band is boosted/cut.
+     * Rebuild only on a real change. */
     BOOL wantTempo = (g_tempo != 0.0f);
+    BOOL wantPitch = (g_pitch != 0.0f);
     BOOL wantEq    = eqActive();
-    if (wantTempo != g_showTempo || wantEq != g_showEq) {
+    if (wantTempo != g_showTempo || wantPitch != g_showPitch || wantEq != g_showEq) {
         g_showTempo = wantTempo;
+        g_showPitch = wantPitch;
         g_showEq    = wantEq;
         rebuildRows();
     }
@@ -408,6 +449,12 @@ static void updateList(void)
         snprintf(buf, sizeof(buf), "%+.0f %%", g_tempo);
         lvSetText(ROW_TEMPO, buf);
 
+        snprintf(buf, sizeof(buf), "%+g st", g_pitch);
+        lvSetText(ROW_PITCH, buf);
+
+        snprintf(buf, sizeof(buf), "%.0f Hz", g_freq);
+        lvSetText(ROW_FREQ, buf);
+
         float vol = 1.0f;
         BASS_ChannelGetAttribute(g_stream, BASS_ATTRIB_VOL, &vol);
         snprintf(buf, sizeof(buf), "%.0f %%", vol * 100.0f);
@@ -419,6 +466,7 @@ static void updateList(void)
         lvSetText(ROW_REMAIN, "0:00");
         lvSetText(ROW_LEN, "0:00");
         lvSetText(ROW_TEMPO, "+0 %");
+        lvSetText(ROW_FREQ, "-");
         lvSetText(ROW_VOL, "100 %");
     }
     if (g_rec) {
@@ -485,7 +533,7 @@ static BOOL inputBox(HWND parent, const char *prompt, char *out, int outlen)
     g_inDone = g_inOk = FALSE; g_inText[0] = 0;
 
     RECT pr; GetWindowRect(parent, &pr);
-    HWND dlg = CreateWindowEx(WS_EX_DLGMODALFRAME, "InputBox", "Go to",
+    HWND dlg = CreateWindowEx(WS_EX_DLGMODALFRAME, "InputBox", "Input",
         WS_POPUP | WS_CAPTION | WS_SYSMENU,
         pr.left + 50, pr.top + 60, 300, 150, parent, NULL, hi, NULL);
 
@@ -524,30 +572,36 @@ static BOOL inputBox(HWND parent, const char *prompt, char *out, int outlen)
     return g_inOk;
 }
 
-/* enter an exact tempo value in percent (e.g. -10 or 25) */
-static void inputTempo(HWND hwnd)
+/* jump to a specific time in minutes (decimals allowed: 3.5 = 3:30) */
+static void seekMinutes(double minutes)
 {
     if (!g_stream) return;
-    char buf[64];
-    if (inputBox(hwnd, "Tempo in percent (e.g. -10 or 20):", buf, sizeof(buf))) {
-        float v = (float)atof(buf);
-        if (v < -90.0f) v = -90.0f;
-        if (v > 5000.0f) v = 5000.0f;
-        g_tempo = v;
-        BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO, g_tempo);
-    }
+    double secs = minutes * 60.0;
+    if (secs < 0) secs = 0;
+    BASS_ChannelSetPosition(g_stream,
+        BASS_ChannelSeconds2Bytes(g_stream, secs), BASS_POS_BYTE);
 }
 
-/* jump to a specific time (minutes, decimals allowed: 3.5 = 3:30) */
-static void gotoMinutes(HWND hwnd)
+/* command box: a bare number jumps to that minute, t/p/q set tempo/pitch/freq.
+ *   30        -> go to 30 minutes      t75 -> tempo 75 %
+ *   p6        -> pitch +6 semitones    q44100 -> frequency 44100 Hz          */
+static void runCommand(HWND hwnd)
 {
     if (!g_stream) return;
     char buf[64];
-    if (inputBox(hwnd, "Go to (minutes, e.g. 3 or 3.5):", buf, sizeof(buf))) {
-        double secs = atof(buf) * 60.0;
-        if (secs < 0) secs = 0;
-        BASS_ChannelSetPosition(g_stream,
-            BASS_ChannelSeconds2Bytes(g_stream, secs), BASS_POS_BYTE);
+    if (!inputBox(hwnd, "Command: 30 / t75 / p6 / q44100", buf, sizeof(buf)))
+        return;
+    const char *s = buf;
+    while (*s == ' ') s++;
+    switch (*s) {
+    case 't': case 'T': setTempo((float)atof(s + 1)); break;
+    case 'p': case 'P': setPitch((float)atof(s + 1)); break;
+    case 'q': case 'Q': setFreq((float)atof(s + 1));  break;
+    case '0': case '1': case '2': case '3': case '4':
+    case '5': case '6': case '7': case '8': case '9':
+    case '.': case '+': case '-':
+        seekMinutes(atof(s));   /* bare number -> minutes */
+        break;
     }
 }
 
@@ -582,13 +636,17 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
     case VK_RETURN: playFromStart(); break;
     case VK_LEFT:   seekBy(ctrl ? -30.0 : -5.0); break;
     case VK_RIGHT:  seekBy(ctrl ? +30.0 : +5.0); break;
-    case 'G':       gotoMinutes(hwnd); break;
-    case 'I':       if (ctrl) resetEq();          /* Ctrl+I: flatten EQ */
-                    else      inputTempo(hwnd);
-                    break;
+    case 'C':       runCommand(hwnd); break;
+    case 'I':       if (ctrl) resetEq(); else used = FALSE; break;  /* Ctrl+I: flatten EQ */
     case 'T':       if (ctrl)       resetTempo();          /* Ctrl+T: reset */
                     else            changeTempo(shift ? +5.0f : -5.0f);
                     break;                                  /* T down / Shift+T up */
+    case 'P':       if (ctrl)       resetPitch();          /* Ctrl+P: reset */
+                    else            changePitch(shift ? +1.0f : -1.0f);
+                    break;                                  /* P down / Shift+P up (semitone) */
+    case 'Q':       if (ctrl)       resetFreq();           /* Ctrl+Q: back to native */
+                    else            changeFreq(shift ? +100.0f : -100.0f);
+                    break;                                  /* Q down / Shift+Q up (100 Hz) */
     case 'V':       if (ctrl)       resetVol();
                     else if (shift)  changeVol(+0.05f);    /* Shift+V: up   */
                     else             changeVol(-0.05f);    /* V: down       */
@@ -670,7 +728,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE prev, LPSTR cmd, int show)
     RegisterClass(&wc);
 
     HWND hwnd = CreateWindow("BassPlAIerWnd", APP_TITLE,
-        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 500, 365,
+        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 500, 430,
         NULL, NULL, hInst, NULL);
     ShowWindow(hwnd, show);
     UpdateWindow(hwnd);
