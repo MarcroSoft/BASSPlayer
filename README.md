@@ -9,7 +9,7 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 
 - Playback via BASS with plugin loading (all `.dll` files in the `plugins\` folder are loaded with `BASS_PluginLoad`, e.g. `bassflac.dll`, `bassopus.dll`, `bass_aac.dll`).
 - Real-time tempo change with BASS_FX (`BASS_ATTRIB_TEMPO`) — without changing the pitch.
-- 10-band graphic equalizer with BASS_FX (`BASS_FX_BFX_PEAKEQ`) at the ISO octave centres (31 Hz … 16 kHz). The band gains are also applied to the recording.
+- 10-band graphic equalizer with BASS_FX (`BASS_FX_BFX_PEAKEQ`) at centres 80, 160, 320, 450, 900 Hz, 1.8, 3.6, 7, 10, 14 kHz. The band gains are also applied to the recording.
 - Recording of what is currently playing to a `.wav` file with BASSenc (`BASS_Encode_Start` / `BASS_Encode_Stop`).
 - Time, status, length, tempo etc. are shown continuously in a `SysListView32` (report view).
 
@@ -29,14 +29,14 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 | `I` | Enter exact tempo value (e.g. `-10` or `20`) |
 | `V` / `Shift+V` | Volume down / up (−5 % / +5 %) |
 | `Ctrl+V` | Reset volume (100 %) |
-| `1`…`9`, `0` | Cut EQ band 1 dB (`1` = 31 Hz … `0` = 16 kHz); top row or numpad |
+| `1`…`9`, `0` | Cut EQ band 1 dB (`1` = 80 Hz … `0` = 14 kHz); top row or numpad |
 | `Shift`+`1`…`9`, `0` | Boost that EQ band 1 dB (range ±15 dB) |
 | `Backspace` | Reset all EQ bands to flat |
 | `R` | Start recording |
 | `E` | Stop recording |
 | `Esc` | Quit |
 
-> **Equalizer:** the 10 `EQ …` rows in the list are the equalizer bands. Each band has its own number key (`1` = 31 Hz … `0` = 16 kHz): press it to cut that band, or `Shift`+the number to boost it — just like the volume keys. `Backspace` flattens everything. The setting persists when you open another file.
+> **Equalizer:** the 10 `EQ …` rows in the list are the equalizer bands. Each band has its own number key (`1` = 80 Hz … `0` = 14 kHz): press it to cut that band, or `Shift`+the number to boost it — just like the volume keys. `Backspace` flattens everything. The setting persists when you open another file.
 
 > The list (`SysListView32`) is subclassed and gets focus automatically. Keys it doesn't use itself (e.g. arrow up/down) are passed on, so you can freely navigate the list.
 

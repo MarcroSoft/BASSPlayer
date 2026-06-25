@@ -11,7 +11,7 @@
  *   T           Reset tempo to 0 %
  *   R           Start recording what is playing (-> recording.wav)
  *   E           Stop recording
- *   1..9, 0          Cut EQ band 1 dB (1 = 31 Hz .. 0 = 16 kHz)  [10-band EQ]
+ *   1..9, 0          Cut EQ band 1 dB (1 = 80 Hz .. 0 = 14 kHz)  [10-band EQ]
  *   Shift+1..9, 0    Boost that EQ band 1 dB
  *   Backspace        Reset all EQ bands to flat
  *   Esc         Quit
@@ -45,10 +45,10 @@ static char      g_recFile[MAX_PATH] = "";  /* current recording filename */
 #define EQ_BANDS 10
 static HFX        g_eqFx = 0;               /* peaking EQ effect on the stream */
 static float      g_eqGain[EQ_BANDS] = {0}; /* per-band gain in dB; persists across files */
-/* classic ISO octave centres */
+/* band centre frequencies (Hz) */
 static const float g_eqFreq[EQ_BANDS] = {
-    31.0f, 62.0f, 125.0f, 250.0f, 500.0f,
-    1000.0f, 2000.0f, 4000.0f, 8000.0f, 16000.0f
+    80.0f, 160.0f, 320.0f, 450.0f, 900.0f,
+    1800.0f, 3600.0f, 7000.0f, 10000.0f, 14000.0f
 };
 
 /* ---- ListView rows ---- */
