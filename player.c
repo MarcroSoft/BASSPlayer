@@ -8,10 +8,10 @@
  *   Enter       Play from the start
  *   Pause/Break Play / Pause (global hotkey, works even without focus)
  *   Left/Right  Seek -5 / +5 sec
- *   T / Shift+T Tempo down / up
- *   Ctrl+T / Backspace  Reset tempo to 0 %
+ *   T / Shift+T Tempo down / up;   Ctrl+T reset
  *   P / Shift+P Pitch down / up (1 semitone);   Ctrl+P reset
  *   Q / Shift+Q Frequency down / up (100 Hz);   Ctrl+Q reset to native
+ *   Backspace   Reset tempo, pitch and frequency
  *   C           Command box (e.g. 30, t75, p6, q44100)
  *   R           Start recording what is playing (-> recording.wav)
  *   E           Stop recording
@@ -653,7 +653,7 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
                     break;
     case 'R':       startEncode(hwnd); break;
     case 'E':       stopEncode(); break;
-    case VK_BACK:   resetTempo(); break;     /* reset tempo to 0 % */
+    case VK_BACK:   resetTempo(); resetPitch(); resetFreq(); break;  /* reset tempo/pitch/freq */
 //    case VK_ESCAPE: DestroyWindow(hwnd); break;
     default:        used = FALSE; break;   /* arrow up/down etc. -> list */
     }

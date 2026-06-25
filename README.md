@@ -27,11 +27,12 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 | `Ctrl+←` / `Ctrl+→` | Seek −30 / +30 sec |
 | `↑` / `↓` | Navigate the list |
 | `T` / `Shift+T` | Tempo down / up |
-| `Ctrl+T` / `Backspace` | Reset tempo to 0 % |
+| `Ctrl+T` | Reset tempo to 0 % |
 | `P` / `Shift+P` | Pitch down / up (1 semitone) |
 | `Ctrl+P` | Reset pitch to 0 |
 | `Q` / `Shift+Q` | Frequency down / up (100 Hz) |
 | `Ctrl+Q` | Reset frequency to the file's native rate |
+| `Backspace` | Reset tempo, pitch and frequency at once |
 | `C` | Command box (`30` = go to 30 min, `t75`, `p6`, `q44100`) |
 | `V` / `Shift+V` | Volume down / up |
 | `Ctrl+V` | Reset volume (100 %) |
