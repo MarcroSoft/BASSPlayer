@@ -12,7 +12,7 @@
  *   P / Shift+P Pitch down / up (1 semitone);   Ctrl+P reset
  *   Q / Shift+Q Frequency down / up (100 Hz);   Ctrl+Q reset to native
  *   Backspace   Reset tempo, pitch and frequency
- *   C           Command box (e.g. 30, +5, t75, p6, q44100)
+ *   C           Command box (e.g. 30, +5, t75, p6, q44100, v150)
  *   R           Start recording what is playing (-> recording.wav)
  *   E           Stop recording
  *   1..9, 0          Cut EQ band 1 dB (1 = 80 Hz .. 0 = 14 kHz)  [10-band EQ]
@@ -351,21 +351,23 @@ static void setFreq(float v)
 static void changeFreq(float delta) { setFreq(g_freq + delta); }
 static void resetFreq(void)         { if (g_freqDef > 0.0f) setFreq(g_freqDef); }
 
-static void changeVol(float delta)
+static void setVol(float v)   /* linear factor: 1.0 = 100 % */
 {
     if (!g_stream) return;
-    float v = 1.0f;
-    BASS_ChannelGetAttribute(g_stream, BASS_ATTRIB_VOL, &v);
-    v += delta;
     if (v < 0.0f) v = 0.0f;
     if (v > 3.0f) v = 3.0f;   /* up to 300 % */
     BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_VOL, v);
 }
 
-static void resetVol(void)
+static void changeVol(float delta)
 {
-    if (g_stream) BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_VOL, 1.0f);
+    if (!g_stream) return;
+    float v = 1.0f;
+    BASS_ChannelGetAttribute(g_stream, BASS_ATTRIB_VOL, &v);
+    setVol(v + delta);
 }
+
+static void resetVol(void) { setVol(1.0f); }
 
 static void togglePlay(void)
 {
@@ -586,12 +588,13 @@ static void seekMinutes(double minutes)
  * relative, and t/p/q set tempo/pitch/freq.
  *   30        -> go to 30 minutes      +5  -> 5 minutes forward
  *   t75       -> tempo 75 %            -3  -> 3 minutes back
- *   p6        -> pitch +6 semitones    q44100 -> frequency 44100 Hz          */
+ *   p6        -> pitch +6 semitones    q44100 -> frequency 44100 Hz
+ *   v150      -> volume 150 %                                                */
 static void runCommand(HWND hwnd)
 {
     if (!g_stream) return;
     char buf[64];
-    if (!inputBox(hwnd, "Command: 30 / +5 / t75 / p6 / q44100", buf, sizeof(buf)))
+    if (!inputBox(hwnd, "Command: 30 / +5 / t75 / p6 / q44100 / v150", buf, sizeof(buf)))
         return;
     const char *s = buf;
     while (*s == ' ') s++;
@@ -599,6 +602,7 @@ static void runCommand(HWND hwnd)
     case 't': case 'T': setTempo((float)atof(s + 1)); break;
     case 'p': case 'P': setPitch((float)atof(s + 1)); break;
     case 'q': case 'Q': setFreq((float)atof(s + 1));  break;
+    case 'v': case 'V': setVol((float)atof(s + 1) / 100.0f); break;  /* percent */
     case '+': case '-':
         seekBy(atof(s) * 60.0);   /* signed -> relative minutes */
         break;
