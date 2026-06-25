@@ -149,12 +149,16 @@ static void loadPlugins(void)
     FindClose(h);
 }
 
-/* ---- helper: format seconds as m:ss ---- */
+/* ---- helper: format seconds as h:mm:ss (hours only when needed) ---- */
 static void fmtTime(double secs, char *out, size_t n)
 {
     if (secs < 0) secs = 0;
     int s = (int)(secs + 0.5);
-    snprintf(out, n, "%d:%02d", s / 60, s % 60);
+    int h = s / 3600;
+    if (h > 0)
+        snprintf(out, n, "%d:%02d:%02d", h, (s % 3600) / 60, s % 60);
+    else
+        snprintf(out, n, "%d:%02d", s / 60, s % 60);
 }
 
 static void stopEncode(void)
@@ -367,9 +371,14 @@ static void updateList(void)
         char t[32];
         QWORD pos = BASS_ChannelGetPosition(g_stream, BASS_POS_BYTE);
         QWORD len = BASS_ChannelGetLength(g_stream, BASS_POS_BYTE);
-        fmtTime(BASS_ChannelBytes2Seconds(g_stream, pos), t, sizeof(t));
+        /* BASS reports time on the original timeline; scale it to real
+         * playback time at the current tempo. +100 % = double speed
+         * (half the time), -50 % = half speed (double the time). */
+        double factor = (g_tempo + 100.0) / 100.0;
+        if (factor < 0.01) factor = 0.01;        /* guard (tempo is clamped >= -90) */
+        fmtTime(BASS_ChannelBytes2Seconds(g_stream, pos) / factor, t, sizeof(t));
         lvSetText(ROW_POS, t);
-        fmtTime(BASS_ChannelBytes2Seconds(g_stream, len), t, sizeof(t));
+        fmtTime(BASS_ChannelBytes2Seconds(g_stream, len) / factor, t, sizeof(t));
         lvSetText(ROW_LEN, t);
 
         snprintf(buf, sizeof(buf), "%+.0f %%", g_tempo);
