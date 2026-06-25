@@ -44,7 +44,8 @@ static char      g_file[MAX_PATH] = "";
 static char      g_recFile[MAX_PATH] = "";  /* current recording filename */
 
 /* ---- 10-band peaking equalizer (BASS_FX) ---- */
-#define EQ_BANDS 10
+#define EQ_BANDS    10
+#define EQ_PER_ROW  5     /* shown 5 bands per list row */
 static HFX        g_eqFx = 0;               /* peaking EQ effect on the stream */
 static float      g_eqGain[EQ_BANDS] = {0}; /* per-band gain in dB; persists across files */
 /* band centre frequencies (Hz) */
@@ -57,8 +58,9 @@ static const float g_eqFreq[EQ_BANDS] = {
 enum {
     ROW_FILE = 0, ROW_STATUS, ROW_POS, ROW_LEN,
     ROW_TEMPO, ROW_VOL, ROW_REC,
-    ROW_EQ0,                       /* first EQ band; EQ_BANDS rows follow */
-    ROW_COUNT = ROW_EQ0 + EQ_BANDS
+    ROW_EQ_LO,                     /* EQ bands 1-5 on one row, 6-10 on the next */
+    ROW_EQ_HI,
+    ROW_COUNT
 };
 
 static BOOL handleKey(HWND hwnd, WPARAM key);   /* forward */
@@ -107,9 +109,9 @@ static void buildList(HWND hwnd)
 
     LVCOLUMN col = {0};
     col.mask = LVCF_TEXT | LVCF_WIDTH;
-    col.cx = 150; col.pszText = (LPSTR)"Property";
+    col.cx = 130; col.pszText = (LPSTR)"Property";
     ListView_InsertColumn(g_hList, 0, &col);
-    col.cx = 320; col.pszText = (LPSTR)"Value";
+    col.cx = 350; col.pszText = (LPSTR)"Value";
     ListView_InsertColumn(g_hList, 1, &col);
 
     lvAddRow(ROW_FILE,   "File");
@@ -120,15 +122,9 @@ static void buildList(HWND hwnd)
     lvAddRow(ROW_VOL,    "Volume");
     lvAddRow(ROW_REC,    "Recording");
 
-    /* one row per EQ band, e.g. "EQ 125 Hz" / "EQ 16 kHz" */
-    for (int b = 0; b < EQ_BANDS; b++) {
-        char nm[32];
-        if (g_eqFreq[b] >= 1000.0f)
-            snprintf(nm, sizeof(nm), "EQ %g kHz", g_eqFreq[b] / 1000.0);
-        else
-            snprintf(nm, sizeof(nm), "EQ %g Hz", (double)g_eqFreq[b]);
-        lvAddRow(ROW_EQ0 + b, nm);
-    }
+    /* two EQ rows: bands 1-5 and bands 6-10, each holding 5 "freq:gain" cells */
+    lvAddRow(ROW_EQ_LO, "EQ 80-900 Hz");
+    lvAddRow(ROW_EQ_HI, "EQ 1.8-14 kHz");
 
     /* subclass the list so it handles the keyboard itself */
     g_listProc = (WNDPROC)SetWindowLongPtr(g_hList, GWLP_WNDPROC, (LONG_PTR)ListProc);
@@ -201,11 +197,11 @@ static void setupEq(void)
     }
 }
 
-/* highlight a band in the list so it is clear which one just changed */
+/* highlight the row holding a band so it is clear which one just changed */
 static void selectEqBand(int band)
 {
     if (band < 0 || band >= EQ_BANDS) return;
-    int row = ROW_EQ0 + band;
+    int row = ROW_EQ_LO + band / EQ_PER_ROW;
     ListView_SetItemState(g_hList, row,
         LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
     ListView_EnsureVisible(g_hList, row, FALSE);
@@ -405,10 +401,23 @@ static void updateList(void)
         lvSetText(ROW_REC, "no");
     }
 
-    /* EQ band gains (persist whether or not a file is loaded) */
-    for (int b = 0; b < EQ_BANDS; b++) {
-        snprintf(buf, sizeof(buf), "%+.0f dB", g_eqGain[b]);
-        lvSetText(ROW_EQ0 + b, buf);
+    /* EQ gains: 5 bands per row as "freq:gain" cells (persist always) */
+    for (int r = 0; r < 2; r++) {
+        char line[256];
+        line[0] = 0;
+        for (int i = 0; i < EQ_PER_ROW; i++) {
+            int b = r * EQ_PER_ROW + i;
+            char cell[32];
+            if (g_eqFreq[b] >= 1000.0f)
+                snprintf(cell, sizeof(cell), "%gk:%+.0f",
+                         g_eqFreq[b] / 1000.0, g_eqGain[b]);
+            else
+                snprintf(cell, sizeof(cell), "%g:%+.0f",
+                         (double)g_eqFreq[b], g_eqGain[b]);
+            if (i) strncat(line, "   ", sizeof(line) - strlen(line) - 1);
+            strncat(line, cell, sizeof(line) - strlen(line) - 1);
+        }
+        lvSetText(ROW_EQ_LO + r, line);
     }
 }
 
@@ -629,7 +638,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE prev, LPSTR cmd, int show)
     RegisterClass(&wc);
 
     HWND hwnd = CreateWindow("BassPlAIerWnd", APP_TITLE,
-        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 500, 540,
+        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 500, 340,
         NULL, NULL, hInst, NULL);
     ShowWindow(hwnd, show);
     UpdateWindow(hwnd);
