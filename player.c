@@ -12,7 +12,7 @@
  *   P / Shift+P Pitch down / up (1 semitone);   Ctrl+P reset
  *   Q / Shift+Q Frequency down / up (100 Hz);   Ctrl+Q reset to native
  *   Backspace   Reset tempo, pitch and frequency
- *   C           Command box (e.g. 30, t75, p6, q44100)
+ *   C           Command box (e.g. 30, +5, t75, p6, q44100)
  *   R           Start recording what is playing (-> recording.wav)
  *   E           Stop recording
  *   1..9, 0          Cut EQ band 1 dB (1 = 80 Hz .. 0 = 14 kHz)  [10-band EQ]
@@ -582,14 +582,16 @@ static void seekMinutes(double minutes)
         BASS_ChannelSeconds2Bytes(g_stream, secs), BASS_POS_BYTE);
 }
 
-/* command box: a bare number jumps to that minute, t/p/q set tempo/pitch/freq.
- *   30        -> go to 30 minutes      t75 -> tempo 75 %
+/* command box: a bare number jumps to that minute, a signed number seeks
+ * relative, and t/p/q set tempo/pitch/freq.
+ *   30        -> go to 30 minutes      +5  -> 5 minutes forward
+ *   t75       -> tempo 75 %            -3  -> 3 minutes back
  *   p6        -> pitch +6 semitones    q44100 -> frequency 44100 Hz          */
 static void runCommand(HWND hwnd)
 {
     if (!g_stream) return;
     char buf[64];
-    if (!inputBox(hwnd, "Command: 30 / t75 / p6 / q44100", buf, sizeof(buf)))
+    if (!inputBox(hwnd, "Command: 30 / +5 / t75 / p6 / q44100", buf, sizeof(buf)))
         return;
     const char *s = buf;
     while (*s == ' ') s++;
@@ -597,10 +599,13 @@ static void runCommand(HWND hwnd)
     case 't': case 'T': setTempo((float)atof(s + 1)); break;
     case 'p': case 'P': setPitch((float)atof(s + 1)); break;
     case 'q': case 'Q': setFreq((float)atof(s + 1));  break;
+    case '+': case '-':
+        seekBy(atof(s) * 60.0);   /* signed -> relative minutes */
+        break;
     case '0': case '1': case '2': case '3': case '4':
     case '5': case '6': case '7': case '8': case '9':
-    case '.': case '+': case '-':
-        seekMinutes(atof(s));   /* bare number -> minutes */
+    case '.':
+        seekMinutes(atof(s));     /* bare number -> absolute minute */
         break;
     }
 }

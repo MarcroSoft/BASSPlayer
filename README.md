@@ -10,7 +10,7 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 - Playback via BASS with plugin loading (all `.dll` files in the `plugins\` folder are loaded with `BASS_PluginLoad`, e.g. `bassflac.dll`, `bassopus.dll`, `bass_aac.dll`).
 - Real-time tempo change with BASS_FX (`BASS_ATTRIB_TEMPO`) — without changing the pitch.
 - Independent pitch shift in semitones (`BASS_ATTRIB_TEMPO_PITCH`) and playback sample-rate / frequency control in 100 Hz steps (`BASS_ATTRIB_TEMPO_FREQ`).
-- Command box (`C`): type `30` to jump to 30 minutes, `t75` to set tempo, `p6` for pitch, `q44100` for frequency.
+- Command box (`C`): type `30` to jump to 30 minutes, `+5` / `-3` to seek relative, `t75` to set tempo, `p6` for pitch, `q44100` for frequency.
 - 10-band graphic equalizer with BASS_FX (`BASS_FX_BFX_PEAKEQ`) at centres 80, 160, 320, 450, 900 Hz, 1.8, 3.6, 7, 10, 14 kHz. The band gains are also applied to the recording.
 - Recording of what is currently playing to a `.wav` file with BASSenc (`BASS_Encode_Start` / `BASS_Encode_Stop`).
 - Time, status, length, tempo etc. are shown continuously in a `SysListView32` (report view).
@@ -33,7 +33,7 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 | `Q` / `Shift+Q` | Frequency down / up (100 Hz) |
 | `Ctrl+Q` | Reset frequency to the file's native rate |
 | `Backspace` | Reset tempo, pitch and frequency at once |
-| `C` | Command box (`30` = go to 30 min, `t75`, `p6`, `q44100`) |
+| `C` | Command box (`30` = go to 30 min, `+5`/`-3` = seek relative, `t75`, `p6`, `q44100`) |
 | `V` / `Shift+V` | Volume down / up |
 | `Ctrl+V` | Reset volume (100 %) |
 | `1`…`9`, `0` | Cut EQ band 1 dB (`1` = 80 Hz … `0` = 14 kHz); top row or numpad |
