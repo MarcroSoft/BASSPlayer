@@ -11,6 +11,9 @@
  *   T           Reset tempo to 0 %
  *   R           Start recording what is playing (-> recording.wav)
  *   E           Stop recording
+ *   1..9, 0          Cut EQ band 1 dB (1 = 31 Hz .. 0 = 16 kHz)  [10-band EQ]
+ *   Shift+1..9, 0    Boost that EQ band 1 dB
+ *   Backspace        Reset all EQ bands to flat
  *   Esc         Quit
  *
  * Build with MinGW-w64 (see Makefile / build.bat).
@@ -38,10 +41,22 @@ static BOOL      g_rec     = FALSE;    /* recording right now? */
 static char      g_file[MAX_PATH] = "";
 static char      g_recFile[MAX_PATH] = "";  /* current recording filename */
 
+/* ---- 10-band peaking equalizer (BASS_FX) ---- */
+#define EQ_BANDS 10
+static HFX        g_eqFx = 0;               /* peaking EQ effect on the stream */
+static float      g_eqGain[EQ_BANDS] = {0}; /* per-band gain in dB; persists across files */
+/* classic ISO octave centres */
+static const float g_eqFreq[EQ_BANDS] = {
+    31.0f, 62.0f, 125.0f, 250.0f, 500.0f,
+    1000.0f, 2000.0f, 4000.0f, 8000.0f, 16000.0f
+};
+
 /* ---- ListView rows ---- */
 enum {
     ROW_FILE = 0, ROW_STATUS, ROW_POS, ROW_LEN,
-    ROW_TEMPO, ROW_VOL, ROW_REC, ROW_COUNT
+    ROW_TEMPO, ROW_VOL, ROW_REC,
+    ROW_EQ0,                       /* first EQ band; EQ_BANDS rows follow */
+    ROW_COUNT = ROW_EQ0 + EQ_BANDS
 };
 
 static BOOL handleKey(HWND hwnd, WPARAM key);   /* forward */
@@ -103,6 +118,16 @@ static void buildList(HWND hwnd)
     lvAddRow(ROW_VOL,    "Volume");
     lvAddRow(ROW_REC,    "Recording");
 
+    /* one row per EQ band, e.g. "EQ 125 Hz" / "EQ 16 kHz" */
+    for (int b = 0; b < EQ_BANDS; b++) {
+        char nm[32];
+        if (g_eqFreq[b] >= 1000.0f)
+            snprintf(nm, sizeof(nm), "EQ %g kHz", g_eqFreq[b] / 1000.0);
+        else
+            snprintf(nm, sizeof(nm), "EQ %g Hz", (double)g_eqFreq[b]);
+        lvAddRow(ROW_EQ0 + b, nm);
+    }
+
     /* subclass the list so it handles the keyboard itself */
     g_listProc = (WNDPROC)SetWindowLongPtr(g_hList, GWLP_WNDPROC, (LONG_PTR)ListProc);
     SetFocus(g_hList);
@@ -147,6 +172,66 @@ static void closeStream(void)
         BASS_ChannelStop(g_stream);
         BASS_StreamFree(g_stream);   /* BASS_FX_FREESOURCE frees the source */
         g_stream = 0;
+        g_eqFx = 0;                  /* effect is freed together with the stream */
+    }
+}
+
+/* ---- attach the 10-band peaking EQ to the current stream ---- */
+static void setupEq(void)
+{
+    if (!g_stream) return;
+    g_eqFx = BASS_ChannelSetFX(g_stream, BASS_FX_BFX_PEAKEQ, 0);
+    if (!g_eqFx) return;
+
+    BASS_BFX_PEAKEQ eq;
+    eq.fQ        = 0.0f;            /* 0 -> use fBandwidth instead */
+    eq.fBandwidth = 1.0f;          /* one octave per band */
+    eq.lChannel  = BASS_BFX_CHANALL;
+    for (int b = 0; b < EQ_BANDS; b++) {
+        eq.lBand   = b;
+        eq.fCenter = g_eqFreq[b];
+        eq.fGain   = g_eqGain[b];  /* reapply any previously chosen gains */
+        BASS_FXSetParameters(g_eqFx, &eq);
+    }
+}
+
+/* highlight a band in the list so it is clear which one just changed */
+static void selectEqBand(int band)
+{
+    if (band < 0 || band >= EQ_BANDS) return;
+    int row = ROW_EQ0 + band;
+    ListView_SetItemState(g_hList, row,
+        LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+    ListView_EnsureVisible(g_hList, row, FALSE);
+}
+
+static void changeEqBand(int band, float delta)
+{
+    if (band < 0 || band >= EQ_BANDS) return;
+    float g = g_eqGain[band] + delta;
+    if (g < -15.0f) g = -15.0f;
+    if (g >  15.0f) g =  15.0f;
+    g_eqGain[band] = g;
+    if (g_eqFx) {
+        BASS_BFX_PEAKEQ eq;
+        eq.lBand = band;
+        BASS_FXGetParameters(g_eqFx, &eq);   /* keep centre/bandwidth, change gain */
+        eq.fGain = g;
+        BASS_FXSetParameters(g_eqFx, &eq);
+    }
+}
+
+static void resetEq(void)
+{
+    for (int b = 0; b < EQ_BANDS; b++) {
+        g_eqGain[b] = 0.0f;
+        if (g_eqFx) {
+            BASS_BFX_PEAKEQ eq;
+            eq.lBand = b;
+            BASS_FXGetParameters(g_eqFx, &eq);
+            eq.fGain = 0.0f;
+            BASS_FXSetParameters(g_eqFx, &eq);
+        }
     }
 }
 
@@ -182,6 +267,7 @@ static void openFile(HWND hwnd)
     lstrcpyn(g_file, path, MAX_PATH);
     g_tempo = 0.0f;
     BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO, g_tempo);
+    setupEq();                 /* 10-band EQ (reapplies current gains) */
     BASS_ChannelPlay(g_stream, FALSE);
 }
 
@@ -308,6 +394,12 @@ static void updateList(void)
     } else {
         lvSetText(ROW_REC, "no");
     }
+
+    /* EQ band gains (persist whether or not a file is loaded) */
+    for (int b = 0; b < EQ_BANDS; b++) {
+        snprintf(buf, sizeof(buf), "%+.0f dB", g_eqGain[b]);
+        lvSetText(ROW_EQ0 + b, buf);
+    }
 }
 
 /* ---- small modal input dialog (returns the entered text) ---- */
@@ -420,6 +512,20 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
     BOOL ctrl  = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
     BOOL used  = TRUE;
 
+    /* number keys drive the EQ directly, like the volume keys: the plain
+     * number cuts its band, Shift+number boosts it. 1..9 -> bands 1..9,
+     * 0 -> the last band (16 kHz). Top row and numpad both work. */
+    if (!ctrl && ((key >= '0' && key <= '9') ||
+                  (key >= VK_NUMPAD0 && key <= VK_NUMPAD9))) {
+        int d = (key >= VK_NUMPAD0) ? (int)(key - VK_NUMPAD0)
+                                    : (int)(key - '0');
+        int band = (d == 0) ? EQ_BANDS - 1 : d - 1;
+        changeEqBand(band, shift ? +1.0f : -1.0f);
+        selectEqBand(band);          /* highlight the band that changed */
+        updateList();
+        return TRUE;
+    }
+
     switch (key) {
     case 'O':       openFile(hwnd); break;
     case VK_SPACE:  togglePlay(); break;
@@ -438,6 +544,7 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
                     break;
     case 'R':       startEncode(hwnd); break;
     case 'E':       stopEncode(); break;
+    case VK_BACK:   resetEq(); break;        /* flatten the whole EQ */
 //    case VK_ESCAPE: DestroyWindow(hwnd); break;
     default:        used = FALSE; break;   /* arrow up/down etc. -> list */
     }
@@ -506,7 +613,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE prev, LPSTR cmd, int show)
     RegisterClass(&wc);
 
     HWND hwnd = CreateWindow("BassPlayerWnd", APP_TITLE,
-        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 500, 280,
+        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 500, 540,
         NULL, NULL, hInst, NULL);
     ShowWindow(hwnd, show);
     UpdateWindow(hwnd);
