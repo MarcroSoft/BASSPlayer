@@ -5,7 +5,8 @@
  * Keyboard:
  *   O           Open file
  *   Space       Play / Pause
- *   S           Stop (rewind to start)
+ *   Enter       Play from the start
+ *   Pause/Break Play / Pause (global hotkey, works even without focus)
  *   Left/Right  Seek -5 / +5 sec
  *   Up/Down     Tempo +5 % / -5 %
  *   T           Reset tempo to 0 %
@@ -30,6 +31,7 @@
 #define APP_TITLE   "BASS Player"
 #define ID_LISTVIEW 1001
 #define ID_TIMER    1
+#define ID_HOTKEY_PAUSE 1
 #define PLUGIN_DIR  "plugins"
 
 /* ---- global state ---- */
@@ -71,7 +73,7 @@ static LRESULT CALLBACK ListProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         /* otherwise: fall through to the list (navigation) */
     }
     /* Swallow WM_CHAR so the list's type-to-search doesn't move the
-     * selection when our hotkeys (T, V, S, ...) are pressed. Arrow
+     * selection when our hotkeys (T, V, O, ...) are pressed. Arrow
      * navigation uses WM_KEYDOWN, so it is unaffected. */
     if (msg == WM_CHAR)
         return 0;
@@ -327,11 +329,10 @@ static void togglePlay(void)
         BASS_ChannelPlay(g_stream, FALSE);
 }
 
-static void stopPlay(void)
+static void playFromStart(void)
 {
     if (!g_stream) return;
-    BASS_ChannelStop(g_stream);
-    BASS_ChannelSetPosition(g_stream, 0, BASS_POS_BYTE);
+    BASS_ChannelPlay(g_stream, TRUE);   /* TRUE = restart from the beginning */
 }
 
 /* ---- start recording what is playing ---- */
@@ -538,7 +539,7 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
     switch (key) {
     case 'O':       openFile(hwnd); break;
     case VK_SPACE:  togglePlay(); break;
-    case 'S':       stopPlay(); break;
+    case VK_RETURN: playFromStart(); break;
     case VK_LEFT:   seekBy(ctrl ? -30.0 : -5.0); break;
     case VK_RIGHT:  seekBy(ctrl ? +30.0 : +5.0); break;
     case 'G':       gotoMinutes(hwnd); break;
@@ -567,6 +568,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_CREATE:
         buildList(hwnd);
         SetTimer(hwnd, ID_TIMER, 200, NULL);
+        /* global Pause/Break hotkey: pauses even when we don't have focus */
+        RegisterHotKey(hwnd, ID_HOTKEY_PAUSE, 0, VK_PAUSE);
         return 0;
     case WM_SIZE:
         MoveWindow(g_hList, 0, 0, LOWORD(lp), HIWORD(lp), TRUE);
@@ -580,8 +583,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_KEYDOWN:
         handleKey(hwnd, wp);
         return 0;
+    case WM_HOTKEY:
+        if (wp == ID_HOTKEY_PAUSE) { togglePlay(); updateList(); }
+        return 0;
     case WM_DESTROY:
         KillTimer(hwnd, ID_TIMER);
+        UnregisterHotKey(hwnd, ID_HOTKEY_PAUSE);
         closeStream();
         PostQuitMessage(0);
         return 0;

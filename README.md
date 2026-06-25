@@ -19,7 +19,8 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 |------|----------|
 | `O` | Open file |
 | `Space` | Play / pause |
-| `S` | Stop (rewind to start) |
+| `Enter` | Play from the start |
+| `Pause`/`Break` | Play / pause — **global** hotkey, works even when the window is not focused |
 | `←` / `→` | Seek −5 / +5 sec |
 | `Ctrl+←` / `Ctrl+→` | Seek −30 / +30 sec |
 | `G` | Go to time (enter minutes, e.g. `3` or `3.5`) |
