@@ -116,18 +116,18 @@ static void buildList(HWND hwnd)
     col.cx = 350; col.pszText = (LPSTR)"Value";
     ListView_InsertColumn(g_hList, 1, &col);
 
-    lvAddRow(ROW_FILE,   "File");
-    lvAddRow(ROW_STATUS, "Status");
-    lvAddRow(ROW_POS,    "Position");
-    lvAddRow(ROW_REMAIN, "Remaining");
-    lvAddRow(ROW_LEN,    "Length");
-    lvAddRow(ROW_TEMPO,  "Tempo");
-    lvAddRow(ROW_VOL,    "Volume");
-    lvAddRow(ROW_REC,    "Recording");
+    lvAddRow(ROW_FILE,   "File:");
+    lvAddRow(ROW_STATUS, "Status:");
+    lvAddRow(ROW_POS,    "Position:");
+    lvAddRow(ROW_REMAIN, "Remaining:");
+    lvAddRow(ROW_LEN,    "Length:");
+    lvAddRow(ROW_TEMPO,  "Tempo:");
+    lvAddRow(ROW_VOL,    "Volume:");
+    lvAddRow(ROW_REC,    "Recording:");
 
     /* two EQ rows: bands 1-5 and bands 6-10, each holding 5 "freq:gain" cells */
-    lvAddRow(ROW_EQ_LO, "EQ 80-900 Hz");
-    lvAddRow(ROW_EQ_HI, "EQ 1.8-14 kHz");
+    lvAddRow(ROW_EQ_LO, "Equalizer 1:");
+    lvAddRow(ROW_EQ_HI, "Equalizer 2:");
 
     /* subclass the list so it handles the keyboard itself */
     g_listProc = (WNDPROC)SetWindowLongPtr(g_hList, GWLP_WNDPROC, (LONG_PTR)ListProc);
