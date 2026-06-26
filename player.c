@@ -348,7 +348,7 @@ static void seekBy(double deltaSecs)
 static void setTempo(float v)
 {
     if (!g_stream) return;
-    if (v < -90.0f)  v = -90.0f;   /* BASS_FX limit */
+    if (v < -95.0f)  v = -95.0f;   /* BASS_FX limit */
     if (v > 5000.0f) v = 5000.0f;
     g_tempo = v;
     BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO, g_tempo);
