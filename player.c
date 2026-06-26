@@ -47,7 +47,8 @@ static DWORD     g_stream  = 0;        /* tempo stream (what we play) */
 static DWORD     g_revStream = 0;      /* reverse decoder (direction control) */
 static BOOL      g_reverse = FALSE;    /* playing backwards continuously? */
 static BOOL      g_cueing  = FALSE;    /* fast cue/review while F11/F12 held? */
-#define CUE_RATE 4.0f                  /* playback rate multiplier while cueing */
+#define CUE_RATE  4.0f                 /* playback rate multiplier while cueing */
+#define CUE_SLIDE 350                  /* ms to glide the rate up/down (spin-up feel) */
 static float     g_tempo   = 0.0f;     /* tempo change in percent */
 static float     g_pitch   = 0.0f;     /* pitch change in semitones */
 static float     g_freq    = 0.0f;     /* playback sample rate in Hz */
@@ -422,8 +423,10 @@ static void cueStart(int dir)        /* +1 = forward, -1 = backward */
     if (!g_stream || g_cueing) return;
     g_cueing = TRUE;
     setReverseDir(dir);
-    /* set the rate directly so the user's frequency setting (g_freq) is kept */
-    BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO_FREQ, g_freq * CUE_RATE);
+    /* glide the rate up rather than jumping, so it spins up like a tape.
+     * Slide the attribute directly so the user's g_freq setting is untouched. */
+    BASS_ChannelSlideAttribute(g_stream, BASS_ATTRIB_TEMPO_FREQ,
+        g_freq * CUE_RATE, CUE_SLIDE);
     if (BASS_ChannelIsActive(g_stream) != BASS_ACTIVE_PLAYING)
         BASS_ChannelPlay(g_stream, FALSE);
 }
@@ -433,7 +436,8 @@ static void cueStop(void)
     if (!g_cueing) return;
     g_cueing = FALSE;
     setReverseDir(g_reverse ? -1 : +1);   /* back to the chosen direction */
-    BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO_FREQ, g_freq);
+    BASS_ChannelSlideAttribute(g_stream, BASS_ATTRIB_TEMPO_FREQ,
+        g_freq, CUE_SLIDE);               /* glide back down to normal */
 }
 
 static void togglePlay(void)
