@@ -8,6 +8,8 @@
  *   Enter       Play from the start
  *   Pause/Break Play / Pause (global hotkey, works even without focus)
  *   Left/Right  Seek -5 / +5 sec
+ *   B           Play backwards (toggle)
+ *   F11 / F12   Hold to fast rewind / forward (tape-style cue/review)
  *   T / Shift+T Tempo down / up;   Ctrl+T reset
  *   P / Shift+P Pitch down / up (1 semitone);   Ctrl+P reset
  *   Q / Shift+Q Frequency down / up (100 Hz);   Ctrl+Q reset to native
@@ -42,6 +44,10 @@
 static HWND      g_hList   = NULL;     /* SysListView32 */
 static WNDPROC   g_listProc = NULL;    /* original listview procedure */
 static DWORD     g_stream  = 0;        /* tempo stream (what we play) */
+static DWORD     g_revStream = 0;      /* reverse decoder (direction control) */
+static BOOL      g_reverse = FALSE;    /* playing backwards continuously? */
+static BOOL      g_cueing  = FALSE;    /* fast cue/review while F11/F12 held? */
+#define CUE_RATE 4.0f                  /* playback rate multiplier while cueing */
 static float     g_tempo   = 0.0f;     /* tempo change in percent */
 static float     g_pitch   = 0.0f;     /* pitch change in semitones */
 static float     g_freq    = 0.0f;     /* playback sample rate in Hz */
@@ -83,6 +89,8 @@ static BOOL g_showPitch = FALSE;   /* Pitch row hidden while pitch == 0 */
 static BOOL g_showEq    = FALSE;   /* EQ rows hidden while every band == 0 dB */
 
 static BOOL handleKey(HWND hwnd, WPARAM key);   /* forward */
+static void cueStop(void);                      /* forward (used by ListProc) */
+static void updateList(void);                   /* forward (used by ListProc) */
 
 /* Subclass: the list sends keys to our handler first.
  * Keys we don't use (e.g. arrow up/down) pass through to the list itself. */
@@ -92,6 +100,11 @@ static LRESULT CALLBACK ListProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         if (handleKey(GetParent(hwnd), wp))
             return 0;                 /* used -> swallow the key */
         /* otherwise: fall through to the list (navigation) */
+    }
+    if (msg == WM_KEYUP && (wp == VK_F11 || wp == VK_F12)) {
+        cueStop();                    /* released -> stop fast cue/review */
+        updateList();
+        return 0;
     }
     /* Swallow WM_CHAR so the list's type-to-search doesn't move the
      * selection when our hotkeys (T, V, O, ...) are pressed. Arrow
@@ -195,9 +208,11 @@ static void closeStream(void)
     stopEncode();
     if (g_stream) {
         BASS_ChannelStop(g_stream);
-        BASS_StreamFree(g_stream);   /* BASS_FX_FREESOURCE frees the source */
+        BASS_StreamFree(g_stream);   /* BASS_FX_FREESOURCE frees the whole chain */
         g_stream = 0;
+        g_revStream = 0;             /* freed together with the stream */
         g_eqFx = 0;                  /* effect is freed together with the stream */
+        g_cueing = FALSE;
     }
 }
 
@@ -273,16 +288,25 @@ static void openFile(HWND hwnd)
 
     closeStream();
 
-    /* decoder channel -> tempo wrapper. Float for best quality. */
+    /* chain: file decoder -> reverse decoder -> tempo wrapper.
+     * The reverse stage gives live forward/backward direction control. */
     DWORD dec = BASS_StreamCreateFile(FALSE, path, 0, 0,
         BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT);
     if (!dec) {
         MessageBox(hwnd, "Could not open the file.", APP_TITLE, MB_ICONERROR);
         return;
     }
-    g_stream = BASS_FX_TempoCreate(dec, BASS_FX_FREESOURCE);
-    if (!g_stream) {
+    g_revStream = BASS_FX_ReverseCreate(dec, 2.0f,
+        BASS_STREAM_DECODE | BASS_FX_FREESOURCE);
+    if (!g_revStream) {
         BASS_StreamFree(dec);
+        MessageBox(hwnd, "Could not create reverse stream.", APP_TITLE, MB_ICONERROR);
+        return;
+    }
+    g_stream = BASS_FX_TempoCreate(g_revStream, BASS_FX_FREESOURCE);
+    if (!g_stream) {
+        BASS_StreamFree(g_revStream);
+        g_revStream = 0;
         MessageBox(hwnd, "Could not create tempo stream.", APP_TITLE, MB_ICONERROR);
         return;
     }
@@ -290,6 +314,10 @@ static void openFile(HWND hwnd)
     lstrcpyn(g_file, path, MAX_PATH);
     g_tempo = 0.0f;
     g_pitch = 0.0f;
+    g_reverse = FALSE;
+    /* reverse streams default to playing backwards: force forward from the start */
+    BASS_ChannelSetAttribute(g_revStream, BASS_ATTRIB_REVERSE_DIR, BASS_FX_RVS_FORWARD);
+    BASS_ChannelSetPosition(g_stream, 0, BASS_POS_BYTE);
     BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO, 0.0f);
     BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO_PITCH, 0.0f);
     /* default frequency = the file's native sample rate */
@@ -369,6 +397,45 @@ static void changeVol(float delta)
 
 static void resetVol(void) { setVol(1.0f); }
 
+/* ---- reverse playback & tape-style fast cue/review ---- */
+static void setReverseDir(int dir)   /* +1 = forward, -1 = backward */
+{
+    if (g_revStream)
+        BASS_ChannelSetAttribute(g_revStream, BASS_ATTRIB_REVERSE_DIR,
+            dir < 0 ? BASS_FX_RVS_REVERSE : BASS_FX_RVS_FORWARD);
+}
+
+/* toggle continuous backwards playback at normal speed */
+static void toggleReverse(void)
+{
+    if (!g_revStream) return;
+    g_reverse = !g_reverse;
+    if (!g_cueing) setReverseDir(g_reverse ? -1 : +1);
+    if (BASS_ChannelIsActive(g_stream) != BASS_ACTIVE_PLAYING)
+        BASS_ChannelPlay(g_stream, FALSE);
+}
+
+/* hold F11/F12: scrub fast in the given direction, like a tape recorder.
+ * Speed comes from cranking the playback rate up, so the pitch rises too. */
+static void cueStart(int dir)        /* +1 = forward, -1 = backward */
+{
+    if (!g_stream || g_cueing) return;
+    g_cueing = TRUE;
+    setReverseDir(dir);
+    /* set the rate directly so the user's frequency setting (g_freq) is kept */
+    BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO_FREQ, g_freq * CUE_RATE);
+    if (BASS_ChannelIsActive(g_stream) != BASS_ACTIVE_PLAYING)
+        BASS_ChannelPlay(g_stream, FALSE);
+}
+
+static void cueStop(void)
+{
+    if (!g_cueing) return;
+    g_cueing = FALSE;
+    setReverseDir(g_reverse ? -1 : +1);   /* back to the chosen direction */
+    BASS_ChannelSetAttribute(g_stream, BASS_ATTRIB_TEMPO_FREQ, g_freq);
+}
+
 static void togglePlay(void)
 {
     if (!g_stream) return;
@@ -426,10 +493,12 @@ static void updateList(void)
         lvSetText(ROW_FILE, base ? base + 1 : g_file);
 
         DWORD st = BASS_ChannelIsActive(g_stream);
-        lvSetText(ROW_STATUS,
+        snprintf(buf, sizeof(buf), "%s%s",
             st == BASS_ACTIVE_PLAYING ? "Playing" :
             st == BASS_ACTIVE_PAUSED  ? "Paused"  :
-            st == BASS_ACTIVE_STALLED ? "Buffering" : "Stopped");
+            st == BASS_ACTIVE_STALLED ? "Buffering" : "Stopped",
+            g_cueing ? "  <<>> cue" : g_reverse ? "  << reverse" : "");
+        lvSetText(ROW_STATUS, buf);
 
         char t[32];
         QWORD pos = BASS_ChannelGetPosition(g_stream, BASS_POS_BYTE);
@@ -660,6 +729,9 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
                     else if (shift)  changeVol(+0.01f);    /* Shift+V: up   */
                     else             changeVol(-0.01f);    /* V: down       */
                     break;
+    case 'B':       toggleReverse(); break;  /* play backwards on/off */
+    case VK_F11:    cueStart(-1); break;     /* hold = fast rewind  (tape style) */
+    case VK_F12:    cueStart(+1); break;     /* hold = fast forward (tape style) */
     case 'R':       startEncode(hwnd); break;
     case 'E':       stopEncode(); break;
     case VK_BACK:   resetTempo(); resetPitch(); resetFreq(); break;  /* reset tempo/pitch/freq */
@@ -690,6 +762,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return 0;
     case WM_KEYDOWN:
         handleKey(hwnd, wp);
+        return 0;
+    case WM_KEYUP:
+        if (wp == VK_F11 || wp == VK_F12) { cueStop(); updateList(); }
         return 0;
     case WM_HOTKEY:
         if (wp == ID_HOTKEY_PAUSE) { togglePlay(); updateList(); }

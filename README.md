@@ -9,6 +9,7 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 
 - Playback via BASS with plugin loading (all `.dll` files in the `plugins\` folder are loaded with `BASS_PluginLoad`, e.g. `bassflac.dll`, `bassopus.dll`, `bass_aac.dll`).
 - Real-time tempo change with BASS_FX (`BASS_ATTRIB_TEMPO`) — without changing the pitch.
+- Reverse playback (`BASS_FX_ReverseCreate`) and tape-recorder-style fast cue/review: hold `F11`/`F12` to scrub backward/forward at speed.
 - Independent pitch shift in semitones (`BASS_ATTRIB_TEMPO_PITCH`) and playback sample-rate / frequency control in 100 Hz steps (`BASS_ATTRIB_TEMPO_FREQ`).
 - Command box (`C`): type `30` to jump to 30 minutes, `+5` / `-3` to seek relative, `t75` to set tempo, `p6` for pitch, `q44100` for frequency, `v150` for volume.
 - 10-band graphic equalizer with BASS_FX (`BASS_FX_BFX_PEAKEQ`) at centres 80, 160, 320, 450, 900 Hz, 1.8, 3.6, 7, 10, 14 kHz. The band gains are also applied to the recording.
@@ -25,6 +26,8 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 | `Pause`/`Break` | Play / pause — **global** hotkey, works even when the window is not focused |
 | `←` / `→` | Seek −5 / +5 sec |
 | `Ctrl+←` / `Ctrl+→` | Seek −30 / +30 sec |
+| `B` | Play backwards (toggle) |
+| `F11` / `F12` (hold) | Fast rewind / forward like a tape recorder — releases back to normal |
 | `↑` / `↓` | Navigate the list |
 | `T` / `Shift+T` | Tempo down / up |
 | `Ctrl+T` | Reset tempo to 0 % |
