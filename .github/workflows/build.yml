@@ -1,9 +1,9 @@
 name: Build and Release
 
 on:
+  schedule:
+    - cron: '0 4 * * *'   # once a day (04:00 UTC); only builds if main has new commits
   push:
-    branches:
-      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -13,7 +13,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decide whether a build is needed. Manual runs and tag pushes always build;
+  # the daily scheduled run only builds when main has moved since the last
+  # 'latest' release, so we get at most one rolling build per day.
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_build: ${{ steps.decide.outputs.should_build }}
+    steps:
+      - name: Decide whether to build
+        id: decide
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "Event '${{ github.event_name }}' -> always build."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          head="${{ github.sha }}"
+          last="$(gh api "repos/${{ github.repository }}/git/ref/tags/latest" \
+                   --jq '.object.sha' 2>/dev/null || echo '')"
+          echo "current HEAD: $head"
+          echo "latest build: ${last:-<none>}"
+          if [ "$head" != "$last" ]; then
+            echo "New commits since the last build -> building."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No new commits since the last build -> skipping."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
     runs-on: windows-latest
     permissions:
       contents: write
