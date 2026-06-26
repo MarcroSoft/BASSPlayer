@@ -667,7 +667,7 @@ static void runCommand(HWND hwnd)
 {
     if (!g_stream) return;
     char buf[64];
-    if (!inputBox(hwnd, "Command: 30 / +5 / t75 / p6 / q44100 / v150", buf, sizeof(buf)))
+    if (!inputBox(hwnd, "Enter command:", buf, sizeof(buf)))
         return;
     const char *s = buf;
     while (*s == ' ') s++;
