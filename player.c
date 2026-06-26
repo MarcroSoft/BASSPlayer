@@ -80,7 +80,7 @@ enum {
 /* column-0 label for each logical row */
 static const char *g_rowName[ROW_COUNT] = {
     "File:", "Status:", "Position:", "Remaining:", "Length:",
-    "Tempo:", "Pitch:", "Frequency:", "Volume:", "Recording:",
+    "Speed:", "Pitch:", "Frequency:", "Volume:", "Recording:",
     "Equalizer 1:", "Equalizer 2:"
 };
 /* current listview index of each logical row, or -1 while hidden */
@@ -521,10 +521,10 @@ static void updateList(void)
         fmtTime(lenSec, t, sizeof(t));
         lvSetText(ROW_LEN, t);
 
-        snprintf(buf, sizeof(buf), "%+.0f %%", g_tempo);
+        snprintf(buf, sizeof(buf), "%.0f %%", g_tempo);
         lvSetText(ROW_TEMPO, buf);
 
-        snprintf(buf, sizeof(buf), "%+g st", g_pitch);
+        snprintf(buf, sizeof(buf), "%g", g_pitch);
         lvSetText(ROW_PITCH, buf);
 
         snprintf(buf, sizeof(buf), "%.0f Hz", g_freq);
@@ -540,7 +540,7 @@ static void updateList(void)
         lvSetText(ROW_POS, "0:00");
         lvSetText(ROW_REMAIN, "0:00");
         lvSetText(ROW_LEN, "0:00");
-        lvSetText(ROW_TEMPO, "+0 %");
+        lvSetText(ROW_TEMPO, "0 %");
         lvSetText(ROW_FREQ, "-");
         lvSetText(ROW_VOL, "100 %");
     }
