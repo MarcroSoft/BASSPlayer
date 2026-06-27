@@ -139,13 +139,29 @@ jobs:
           Compress-Archive -Path release\* -DestinationPath $zip
           "ZIP_NAME=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $base = "BASSPlAIer-$env:GITHUB_REF_NAME-Setup"
+            $ver  = $env:GITHUB_REF_NAME.TrimStart('v')
+          } else {
+            $base = "BASSPlAIer-Setup"
+            $ver  = Get-Date -Format 'yyyy.MM.dd'
+          }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DMyAppVersion=$ver /F$base installer.iss
+          "SETUP_NAME=$base.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: BASSPlAIer-x64
-          path: ${{ env.ZIP_NAME }}
+          path: |
+            ${{ env.ZIP_NAME }}
+            ${{ env.SETUP_NAME }}
 
-      # --- Rolling "latest" prerelease on every push to main ---
+      # --- Rolling "latest" prerelease (daily, when main has new commits) ---
       - name: Delete previous latest release
         if: github.ref == 'refs/heads/main'
         shell: bash
@@ -160,12 +176,16 @@ jobs:
           tag_name: latest
           name: Latest Development Build
           prerelease: true
-          files: ${{ env.ZIP_NAME }}
+          files: |
+            ${{ env.ZIP_NAME }}
+            ${{ env.SETUP_NAME }}
 
       # --- Proper release when a v* tag is pushed ---
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ZIP_NAME }}
+          files: |
+            ${{ env.ZIP_NAME }}
+            ${{ env.SETUP_NAME }}
           generate_release_notes: true

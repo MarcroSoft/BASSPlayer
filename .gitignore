@@ -36,6 +36,11 @@
 *.x86_64
 *.hex
 
+# Build / release output
+release/
+*.zip
+README.html
+
 # Debug files
 *.dSYM/
 *.su
