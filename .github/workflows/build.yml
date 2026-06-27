@@ -139,19 +139,19 @@ jobs:
           Compress-Archive -Path release\* -DestinationPath $zip
           "ZIP_NAME=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Build installer (Inno Setup)
+      - name: Build installer (NSIS)
         shell: pwsh
         run: |
-          choco install innosetup --no-progress -y
+          choco install nsis --no-progress -y
           if ($env:GITHUB_REF_TYPE -eq 'tag') {
-            $base = "BASSPlAIer-$env:GITHUB_REF_NAME-Setup"
-            $ver  = $env:GITHUB_REF_NAME.TrimStart('v')
+            $out = "BASSPlAIer-$env:GITHUB_REF_NAME-Setup.exe"
+            $ver = $env:GITHUB_REF_NAME.TrimStart('v')
           } else {
-            $base = "BASSPlAIer-Setup"
-            $ver  = Get-Date -Format 'yyyy.MM.dd'
+            $out = "BASSPlAIer-Setup.exe"
+            $ver = Get-Date -Format 'yyyy.MM.dd'
           }
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DMyAppVersion=$ver /F$base installer.iss
-          "SETUP_NAME=$base.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" "/DAPPVERSION=$ver" "/DOUTFILE=$out" installer.nsi
+          "SETUP_NAME=$out" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

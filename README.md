@@ -55,8 +55,8 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 ## Download
 
 Prebuilt x64 packages are attached to each [GitHub release](../../releases): a portable
-`.zip` and a Windows installer (`BASSPlAIer-Setup.exe`, built with Inno Setup) that adds
-Start-menu / optional desktop shortcuts and an uninstaller. The BASS DLLs are bundled in.
+`.zip` and a Windows installer (`BASSPlAIer-Setup.exe`, built with NSIS) that adds a
+Start-menu shortcut, an optional desktop shortcut and an uninstaller. The BASS DLLs are bundled in.
 
 ## How to build
 
