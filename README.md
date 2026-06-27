@@ -42,6 +42,7 @@ Please Note: Virtually all of this code is written by AI, so there might be some
 | `1`…`9`, `0` | Cut EQ band 1 dB (`1` = 80 Hz … `0` = 14 kHz); top row or numpad |
 | `Shift`+`1`…`9`, `0` | Boost that EQ band 1 dB (range ±15 dB) |
 | `Ctrl`+`1`…`9`, `0` | Reset that EQ band to 0 dB |
+| `I` / `Shift+I` | Cut / boost all EQ bands 1 dB |
 | `Ctrl+I` | Reset all EQ bands to flat |
 | `R` | Start recording |
 | `E` | Stop recording |

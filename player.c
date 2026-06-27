@@ -20,6 +20,7 @@
  *   1..9, 0          Cut EQ band 1 dB (1 = 80 Hz .. 0 = 14 kHz)  [10-band EQ]
  *   Shift+1..9, 0    Boost that EQ band 1 dB
  *   Ctrl+1..9, 0     Reset that EQ band to 0 dB
+ *   I / Shift+I      Cut / boost all EQ bands 1 dB
  *   Ctrl+I           Reset all EQ bands to flat
  *   Alt+F4         Quit
  *
@@ -250,6 +251,13 @@ static void changeEqBand(int band, float delta)
         eq.fGain = g;
         BASS_FXSetParameters(g_eqFx, &eq);
     }
+}
+
+/* cut/boost every band by the same amount */
+static void changeAllEq(float delta)
+{
+    for (int b = 0; b < EQ_BANDS; b++)
+        changeEqBand(b, delta);
 }
 
 static void resetEq(void)
@@ -719,7 +727,9 @@ static BOOL handleKey(HWND hwnd, WPARAM key)
     case VK_LEFT:   seekBy(ctrl ? -30.0 : -5.0); break;
     case VK_RIGHT:  seekBy(ctrl ? +30.0 : +5.0); break;
     case 'C':       runCommand(hwnd); break;
-    case 'I':       if (ctrl) resetEq(); else used = FALSE; break;  /* Ctrl+I: flatten EQ */
+    case 'I':       if (ctrl)  resetEq();                       /* Ctrl+I: flatten */
+                    else       changeAllEq(shift ? +1.0f : -1.0f);
+                    break;                                      /* I down / Shift+I up (all bands) */
     case 'T':       if (ctrl)       resetTempo();          /* Ctrl+T: reset */
                     else            changeTempo(shift ? +1.0f : -1.0f);
                     break;                                  /* T down / Shift+T up */
