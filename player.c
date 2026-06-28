@@ -185,16 +185,12 @@ static void loadPlugins(void)
     FindClose(h);
 }
 
-/* ---- helper: format seconds as h:mm:ss (hours only when needed) ---- */
+/* ---- helper: format seconds as h:mm:ss (hours always shown) ---- */
 static void fmtTime(double secs, char *out, size_t n)
 {
     if (secs < 0) secs = 0;
     int s = (int)(secs + 0.5);
-    int h = s / 3600;
-    if (h > 0)
-        snprintf(out, n, "%d:%02d:%02d", h, (s % 3600) / 60, s % 60);
-    else
-        snprintf(out, n, "%d:%02d", s / 60, s % 60);
+    snprintf(out, n, "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60);
 }
 
 static void stopEncode(void)
@@ -545,9 +541,9 @@ static void updateList(void)
     } else {
         lvSetText(ROW_FILE, "(none)");
         lvSetText(ROW_STATUS, "Stopped");
-        lvSetText(ROW_POS, "0:00");
-        lvSetText(ROW_REMAIN, "0:00");
-        lvSetText(ROW_LEN, "0:00");
+        lvSetText(ROW_POS, "0:00:00");
+        lvSetText(ROW_REMAIN, "0:00:00");
+        lvSetText(ROW_LEN, "0:00:00");
         lvSetText(ROW_TEMPO, "0 %");
         lvSetText(ROW_FREQ, "-");
         lvSetText(ROW_VOL, "100 %");
