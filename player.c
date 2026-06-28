@@ -126,6 +126,15 @@ static void lvSetText(int row, const char *txt)
  * Only called when the visible set actually changes, not every tick. */
 static void rebuildRows(void)
 {
+    /* remember the selection so it follows its row instead of jumping to the
+     * top (like a Delphi TListView): same row if it survives, else the row
+     * that takes its place among the remaining ones. */
+    int oldSel = ListView_GetNextItem(g_hList, -1, LVNI_SELECTED);
+    int selRow = -1;
+    if (oldSel >= 0)
+        for (int r = 0; r < ROW_COUNT; r++)
+            if (g_rowIdx[r] == oldSel) { selRow = r; break; }
+
     ListView_DeleteAllItems(g_hList);
     for (int r = 0; r < ROW_COUNT; r++) g_rowIdx[r] = -1;
 
@@ -143,6 +152,20 @@ static void rebuildRows(void)
         ListView_SetItemText(g_hList, idx, 1, (LPSTR)"");
         g_rowIdx[r] = idx;
         idx++;
+    }
+
+    /* restore the selection */
+    if (oldSel >= 0) {
+        int newSel;
+        if (selRow >= 0 && g_rowIdx[selRow] >= 0)
+            newSel = g_rowIdx[selRow];          /* the same row is still shown */
+        else {
+            int count = ListView_GetItemCount(g_hList);   /* its row went away: */
+            newSel = (oldSel < count) ? oldSel : count - 1;  /* keep the position */
+        }
+        if (newSel >= 0)
+            ListView_SetItemState(g_hList, newSel,
+                LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
     }
 }
 
